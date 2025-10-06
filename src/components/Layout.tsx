@@ -28,15 +28,23 @@ const navItems = [
 
 export default function Layout() {
   const [isAgentRunning, setIsAgentRunning] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen border-r border-border bg-card transition-all duration-300",
-          sidebarOpen ? "w-64" : "w-0 md:w-16"
+          sidebarOpen ? "w-64" : "-translate-x-full md:translate-x-0 md:w-16"
         )}
       >
         <div className="flex h-full flex-col">
@@ -91,8 +99,8 @@ export default function Layout() {
         )}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6 shadow-sm">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-3 md:px-6 shadow-sm">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
@@ -102,48 +110,50 @@ export default function Layout() {
               <Menu className="h-5 w-5" />
             </Button>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               <Button
                 variant={isAgentRunning ? "destructive" : "default"}
                 size="sm"
                 onClick={() => setIsAgentRunning(!isAgentRunning)}
-                className="gap-2"
+                className="gap-1 text-xs md:gap-2 md:text-sm"
               >
                 {isAgentRunning ? (
                   <>
-                    <Pause className="h-4 w-4" />
-                    Остановить агента
+                    <Pause className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Остановить</span>
+                    <span className="sm:hidden">Стоп</span>
                   </>
                 ) : (
                   <>
-                    <Play className="h-4 w-4" />
-                    Запустить агента
+                    <Play className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Запустить</span>
+                    <span className="sm:hidden">Старт</span>
                   </>
                 )}
               </Button>
               
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="hidden gap-2 sm:flex">
                 <RefreshCw className="h-4 w-4" />
                 Обновить
               </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button variant="ghost" size="icon" className="relative h-8 w-8 md:h-10 md:w-10">
+              <Bell className="h-4 w-4 md:h-5 md:w-5" />
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive md:right-1.5 md:top-1.5" />
             </Button>
             
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent" />
-              <span className="hidden text-sm font-medium md:block">Администратор</span>
+              <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-gradient-to-br from-primary to-accent" />
+              <span className="hidden text-sm font-medium lg:block">Администратор</span>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-3 md:p-6">
           <Outlet />
         </main>
       </div>

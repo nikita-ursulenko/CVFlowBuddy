@@ -30,34 +30,51 @@ const statusConfig = {
   skipped: { label: "Пропущено", variant: "outline" as const, color: "bg-muted-foreground" },
 };
 
+const getStatusBadge = (status: string) => {
+  const config = statusConfig[status as keyof typeof statusConfig];
+  return (
+    <Badge variant={config.variant} className="text-xs">
+      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${config.color}`} />
+      {config.label}
+    </Badge>
+  );
+};
+
 export default function Logs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const filteredLogs = logsData.filter(log => {
+    const matchesSearch = log.vacancy.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         log.site.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || log.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Логи и История</h1>
-          <p className="text-muted-foreground">Журнал всех действий агента</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Логи и История</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Журнал всех действий агента</p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2 w-full md:w-auto" size="sm">
           <Download className="h-4 w-4" />
           Экспорт CSV
         </Button>
       </div>
 
       {/* Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col gap-4 md:flex-row">
+      <Card className="p-3 md:p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Поиск по вакансии или сайту..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 text-sm"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -76,8 +93,29 @@ export default function Logs() {
         </div>
       </Card>
 
-      {/* Logs Table */}
-      <Card className="overflow-hidden">
+      {/* Logs - Mobile Cards */}
+      <div className="space-y-3 md:hidden">
+        {filteredLogs.map((log) => (
+          <Card key={log.id}>
+            <div className="p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-sm truncate">{log.vacancy}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{log.site}</p>
+                </div>
+                {getStatusBadge(log.status)}
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>{log.date}</div>
+                <div className="line-clamp-2">{log.message}</div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Logs Table - Desktop */}
+      <Card className="hidden md:block overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="border-b border-border bg-muted/50">
@@ -90,7 +128,7 @@ export default function Logs() {
               </tr>
             </thead>
             <tbody>
-              {logsData.map((log) => {
+              {filteredLogs.map((log) => {
                 const status = statusConfig[log.status as keyof typeof statusConfig];
                 return (
                   <tr
@@ -116,8 +154,8 @@ export default function Logs() {
       </Card>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Показано 8 из 243 записей</p>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-xs md:text-sm text-muted-foreground">Показано {filteredLogs.length} из 243 записей</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" disabled>
             Назад
