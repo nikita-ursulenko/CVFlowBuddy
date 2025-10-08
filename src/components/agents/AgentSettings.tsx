@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AgentSettings } from '@/types/agent-states';
 import { Clock, Settings, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface AgentSettingsProps {
   settings: AgentSettings;
@@ -26,8 +27,21 @@ export const AgentSettingsDialog: React.FC<AgentSettingsProps> = ({
     headless: settings.headless ?? true // По умолчанию включен
   });
 
+  // Обновляем formData когда открывается диалог или меняются settings
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔄 Загружаем настройки в форму:', settings);
+      setFormData({
+        ...settings,
+        headless: settings.headless ?? true
+      });
+    }
+  }, [isOpen, settings]);
+
   const handleSave = () => {
+    console.log('💾 Сохраняем настройки агента:', formData);
     onSave(formData);
+    toast.success(`✅ Настройки сохранены: ${formData.maxCVDaily} CV за запуск, интервал ${formData.intervalHours}ч`);
     onClose();
   };
 

@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 5004,
+    allowedHosts: [
+      '.serveo.net',      // Для SSH туннелей
+      '.loca.lt',         // Для localtunnel
+      '.ngrok.io',        // Для ngrok
+      '.trycloudflare.com' // Для Cloudflare
+    ],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

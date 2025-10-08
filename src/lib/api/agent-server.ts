@@ -8,7 +8,7 @@ export class AgentServerAPI {
   private config: AgentServerConfig;
 
   constructor(config: AgentServerConfig = {
-    baseUrl: 'http://localhost:5050',
+    baseUrl: import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`,
     timeout: 120000 // Увеличиваем до 2 минут для авторизации
   }) {
     this.config = config;
@@ -184,7 +184,7 @@ export class AgentServerAPI {
     }
   }
 
-  async autoApplyToJobs(sessionId: string, cvData: any, options?: { maxJobs?: number; minMatchScore?: number; headless?: boolean }): Promise<{
+  async autoApplyToJobs(sessionId: string, cvData: any, options?: { maxJobs?: number; minMatchScore?: number; headless?: boolean; isScheduled?: boolean }): Promise<{
     success: boolean;
     message: string;
     appliedCount?: number;
@@ -203,9 +203,10 @@ export class AgentServerAPI {
           cvData,
           maxJobs: options?.maxJobs || 10,
           minMatchScore: options?.minMatchScore || 70,
-          headless: options?.headless ?? true // По умолчанию headless режим
+          headless: options?.headless ?? true, // По умолчанию headless режим
+          isScheduled: options?.isScheduled ?? false // Флаг автоматического запуска
         }),
-        signal: AbortSignal.timeout(120000) // 2 минуты для автоотправки
+        signal: AbortSignal.timeout(600000) // 10 минут для автоотправки (достаточно для 20+ вакансий)
       });
 
       const data = await response.json();

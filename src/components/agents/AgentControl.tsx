@@ -46,6 +46,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     recordError,
     addLog,
     updateSettings,
+    updateStats,
     resetStats
   } = useAgentState();
 
@@ -92,15 +93,104 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     }
   });
 
+  // Загрузка статистики с сервера (вызывается при монтировании)
+  const loadStatsFromServer = async () => {
+    try {
+      const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+      const response = await fetch(`${baseUrl}/api/stats`);
+      if (response.ok) {
+        const serverStats = await response.json();
+        
+        const totalSent = serverStats.totalSent || 0;
+        const totalErrors = serverStats.totalErrors || 0;
+        
+        updateStats({
+          totalSent: totalSent,
+          totalErrors: totalErrors,
+          todaySent: 0, // Сбрасываем прогресс текущего запуска
+          successRate: totalErrors > 0 ? (totalSent / (totalSent + totalErrors)) * 100 : 100,
+          lastActivity: new Date()
+        });
+        
+        console.log(`📊 Статистика загружена: всего ${totalSent} CV`);
+      }
+    } catch (error) {
+      // Убираем спам
+    }
+  };
+
   useEffect(() => {
     checkServerStatus();
     setLocalSessionId(sessionId);
     setLocalCvExistsOnSite(cvExistsOnSite);
+    
+    // Загружаем статистику с сервера при монтировании/обновлении
+    loadStatsFromServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, cvExistsOnSite]);
 
   useEffect(() => {
     checkCVSync();
   }, [cvFile, isLoggedIn, cvExistsOnSite]);
+
+  // Автообновление статистики каждые 10 секунд когда агент работает
+  useEffect(() => {
+    if (agentStatus.state !== 'running') {
+      return;
+    }
+
+    let lastLoggedProgress = -1; // Последнее залогированное значение
+
+    const updateStatsFromServer = async () => {
+      try {
+        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+        const response = await fetch(`${baseUrl}/api/stats`);
+        if (response.ok) {
+          const serverStats = await response.json();
+          
+          // Обновляем локальное состояние статистики с данными сервера
+          const totalSent = serverStats.totalSent || 0;
+          const totalErrors = serverStats.totalErrors || 0;
+          
+          // Получаем начальное значение при запуске агента
+          const startCount = parseInt(localStorage.getItem('agent_run_start_count') || '0', 10);
+          
+          // Вычисляем прогресс ТЕКУЩЕГО запуска
+          const currentRunProgress = totalSent - startCount;
+          
+          // Обновляем stats напрямую (БЕЗ лога в консоль)
+          updateStats({
+            totalSent: totalSent,
+            totalErrors: totalErrors,
+            todaySent: currentRunProgress, // Показываем прогресс ТЕКУЩЕГО запуска
+            successRate: totalErrors > 0 ? (totalSent / (totalSent + totalErrors)) * 100 : 100,
+            lastActivity: new Date()
+          });
+          
+          // Логируем ТОЛЬКО при изменении прогресса (не каждые 10 секунд!)
+          if (currentRunProgress !== lastLoggedProgress && currentRunProgress > 0) {
+            lastLoggedProgress = currentRunProgress;
+            // Логируем только каждые 5 CV
+            if (currentRunProgress % 5 === 0) {
+              console.log(`📊 Прогресс: ${currentRunProgress}/${settings.maxCVDaily} CV`);
+            }
+          }
+        }
+      } catch (error) {
+        // Убираем спам ошибок в консоли
+      }
+    };
+
+    // Первое обновление сразу
+    updateStatsFromServer();
+
+    // Затем каждые 10 секунд
+    const intervalId = setInterval(updateStatsFromServer, 10000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [agentStatus.state, updateStats, settings.maxCVDaily]);
 
   const checkServerStatus = async () => {
     setServerStatus('checking');
@@ -225,7 +315,11 @@ export const AgentControl: React.FC<AgentControlProps> = ({
       const result = await agentServerAPI.autoApplyToJobs(
         localSessionId,
         cvFile.aiAnalysis,
-        { maxJobs: 10, minMatchScore: 70 }
+        { 
+          maxJobs: config.settings.maxCVDaily, // Используем настройку из конфига
+          minMatchScore: 70,
+          headless: config.settings.headless
+        }
       );
 
       if (result.success) {
@@ -453,8 +547,21 @@ export const AgentControl: React.FC<AgentControlProps> = ({
               <div className="flex gap-3">
                 {agentStatus.state === 'idle' || agentStatus.state === 'stopped' ? (
                   <Button 
-                    onClick={() => {
-                      resetStats(); // Сбрасываем старую статистику
+                    onClick={async () => {
+                      // Загружаем текущую статистику с сервера
+                      const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+                      const response = await fetch(`${baseUrl}/api/stats`);
+                      if (response.ok) {
+                        const serverStats = await response.json();
+                        const currentTotal = serverStats.totalSent || 0;
+                        
+                        // Сохраняем начальное значение для подсчёта прогресса
+                        localStorage.setItem('agent_run_start_count', currentTotal.toString());
+                        console.log(`🚀 Запуск агента. Начальное значение: ${currentTotal} CV`);
+                      }
+                      
+                      // Обнуляем прогресс текущего запуска
+                      updateStats({ todaySent: 0 });
                       startAgent(sessionId);
                       toast.success('Автоматический агент запущен');
                     }}
@@ -480,7 +587,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                     <Button
                       onClick={() => {
                         stopAgent();
-                        resetStats(); // Сбрасываем статистику при остановке
+                        localStorage.removeItem('agent_run_start_count'); // Очищаем начальное значение
+                        updateStats({ todaySent: 0 }); // Сбрасываем прогресс
                         toast.info('Агент остановлен');
                       }}
                       variant="outline"
@@ -505,7 +613,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                     <Button
                       onClick={() => {
                         stopAgent();
-                        resetStats(); // Сбрасываем статистику при остановке
+                        localStorage.removeItem('agent_run_start_count'); // Очищаем начальное значение
+                        updateStats({ todaySent: 0 }); // Сбрасываем прогресс
                         toast.info('Агент остановлен');
                       }}
                       variant="outline"
@@ -556,6 +665,39 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                 <Zap className="h-4 w-4 animate-pulse text-blue-500" />
                 {autoApplyProgress}
               </div>
+            </div>
+          )}
+
+          {/* Статус-бар прогресса автоотправки */}
+          {agentStatus.state === 'running' && (
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-green-600 animate-pulse" />
+                  <span className="text-sm font-semibold text-gray-700">Прогресс за текущую сессию</span>
+                </div>
+                <Badge variant="outline" className="text-green-600 border-green-400">
+                  {stats.todaySent} / {settings.maxCVDaily} CV
+                </Badge>
+              </div>
+              
+              <div className="space-y-2">
+                <Progress 
+                  value={(stats.todaySent / settings.maxCVDaily) * 100} 
+                  className="h-2"
+                />
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span>Отправлено: {stats.todaySent} CV</span>
+                  <span>Цель: {settings.maxCVDaily} CV</span>
+                </div>
+              </div>
+
+              {stats.todaySent >= settings.maxCVDaily && (
+                <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
+                  <CheckCircle className="h-4 w-4" />
+                  Цель достигнута! Ожидание следующего запуска через {settings.intervalHours}ч
+                </div>
+              )}
             </div>
           )}
         </div>

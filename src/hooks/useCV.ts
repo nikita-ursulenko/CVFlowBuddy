@@ -115,7 +115,8 @@ export const useCV = () => {
       
       // Сохраняем файл на сервере для использования агентом
       toast.info('Загрузка CV файла...');
-      const response = await fetch('http://localhost:5050/api/agent/upload-cv', {
+      const baseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`;
+      const response = await fetch(`${baseUrl}/api/agent/upload-cv`, {
         method: 'POST',
         body: formData
       });

@@ -83,7 +83,8 @@ export default function CV() {
         
         try {
           // Читаем контент CV через сервер
-          const response = await fetch(`http://localhost:5050/api/agent/analyze-cv`, {
+          const baseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`;
+          const response = await fetch(`${baseUrl}/api/agent/analyze-cv`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

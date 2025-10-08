@@ -26,6 +26,7 @@ export interface ActivityItem {
   id: string;
   vacancy: string;
   site: string;
+  url?: string; // URL вакансии для ссылки
   status: 'success' | 'error' | 'pending';
   date: string;
   timestamp: number;
@@ -45,7 +46,8 @@ const STORAGE_KEY = 'cvflow_stats';
 export class StatsAPI {
   private static async fetchFromAPI(endpoint: string, options: RequestInit = {}): Promise<any> {
     try {
-      const response = await fetch(`http://localhost:5050${endpoint}`, {
+      const baseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`;
+      const response = await fetch(`${baseUrl}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
           ...options.headers

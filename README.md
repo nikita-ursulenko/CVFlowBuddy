@@ -71,3 +71,72 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## 🚀 Быстрый запуск серверов
+
+### Автоматический запуск (рекомендуется)
+
+```bash
+bash START-SERVERS.sh
+```
+
+### Ручной запуск
+
+1. **Backend сервер** (порт 5050):
+```bash
+node agent-server-simple.js
+```
+
+2. **Frontend сервер** (порт 5004):
+```bash
+npm run dev
+```
+
+### Доступ к приложению
+
+После запуска серверов, откройте браузер:
+
+- **Локально**: http://localhost:5004
+- **По IP**: http://10.211.55.5:5004 (замените на ваш IP)
+
+### Получить IP-адрес
+
+```bash
+hostname -I | awk '{print $1}'
+```
+
+### Остановка серверов
+
+```bash
+pkill -f "node"
+```
+
+---
+
+**Требования**: Node.js v18+ и npm
+
+
+## ⚠️ Важно для ARM64 систем (Apple Silicon, Parallels ARM)
+
+Если вы используете ARM64 архитектуру:
+
+- ❌ **Google Chrome AMD64** не будет работать (несовместимая архитектура)
+- ✅ **Chromium ARM64** автоматически установится через Playwright
+- ✅ Все функции автоматизации работают идентично
+
+### Проверка архитектуры
+
+```bash
+uname -m
+# arm64 или aarch64 = ARM система
+# x86_64 = AMD64/Intel система
+```
+
+### Установка браузеров Playwright
+
+```bash
+npx playwright install
+```
+
+Chromium будет установлен в: `~/.cache/ms-playwright/chromium-*/chrome-linux/chrome`
+

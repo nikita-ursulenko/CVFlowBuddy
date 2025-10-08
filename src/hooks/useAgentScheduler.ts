@@ -20,6 +20,39 @@ export const useAgentScheduler = ({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isRunningRef = useRef(false);
   const isInitializedRef = useRef(false); // Флаг для предотвращения множественных запусков
+  const hasManualStartRef = useRef(false); // Флаг ручного запуска в этой сессии
+
+  const LAST_RUN_KEY = 'agent_last_run_timestamp';
+  const MANUAL_START_KEY = 'agent_manual_start_session'; // sessionStorage!
+  
+  // Проверка времени последнего запуска
+  const canRunNow = useCallback(() => {
+    const lastRunStr = localStorage.getItem(LAST_RUN_KEY);
+    if (!lastRunStr) {
+      return true; // Первый запуск
+    }
+
+    const lastRunTime = parseInt(lastRunStr, 10);
+    const now = Date.now();
+    const timeSinceLastRun = now - lastRunTime;
+    
+    // Используем интервал из настроек (в миллисекундах)
+    const requiredInterval = settings.intervalHours * 60 * 60 * 1000;
+
+    if (timeSinceLastRun < requiredInterval) {
+      const hoursLeft = ((requiredInterval - timeSinceLastRun) / (60 * 60 * 1000)).toFixed(1);
+      const hoursPassed = (timeSinceLastRun / (60 * 60 * 1000)).toFixed(1);
+      console.log(`⏱️ Задача выполнялась ${hoursPassed}ч назад. Следующий запуск через ${hoursLeft}ч (интервал: ${settings.intervalHours}ч)`);
+      return false;
+    }
+
+    return true;
+  }, [settings.intervalHours]);
+
+  // Сохранение времени запуска
+  const saveRunTimestamp = useCallback(() => {
+    localStorage.setItem(LAST_RUN_KEY, Date.now().toString());
+  }, []);
 
   // Проверка, нужно ли выполнять задачу
   const shouldRunTask = useCallback(() => {
@@ -32,8 +65,13 @@ export const useAgentScheduler = ({
       return false;
     }
 
+    if (!canRunNow()) {
+      console.log('⏭️ Пропускаем запуск - задача выполнялась недавно');
+      return false;
+    }
+
     return true;
-  }, [status, sessionId]);
+  }, [status, sessionId, canRunNow]);
 
   // Выполнение задачи агента (используем ту же логику что и "Разовая отправка")
   const runAgentTask = useCallback(async () => {
@@ -94,7 +132,8 @@ export const useAgentScheduler = ({
         { 
           maxJobs: settings.maxCVDaily,  // Используем настройку из агента
           minMatchScore: 0,              // Отправляем на все вакансии
-          headless: settings.headless    // Фоновый режим
+          headless: settings.headless,   // Фоновый режим
+          isScheduled: true              // Флаг автоматического запуска
         }
       );
 
@@ -102,6 +141,10 @@ export const useAgentScheduler = ({
         const appliedCount = result.appliedCount || 0;
         const skippedCount = result.skippedCount || 0;
         const totalProcessed = result.total || 0;
+        
+        // Сохраняем время УСПЕШНОГО выполнения задачи
+        saveRunTimestamp();
+        console.log(`💾 Время выполнения задачи сохранено. Следующий запуск через ${settings.intervalHours}ч`);
         
         // "Пропущенные" вакансии - это НЕ ошибки!
         // Это просто вакансии без кнопки CV или уже обработанные
@@ -134,11 +177,11 @@ export const useAgentScheduler = ({
       isRunningRef.current = false;
       console.log('✅ Задача планировщика завершена');
     }
-  }, [shouldRunTask, sessionId, settings.maxCVDaily, settings.headless, onTaskComplete, onLog]);
+  }, [shouldRunTask, sessionId, settings.maxCVDaily, settings.headless, settings.intervalHours, onTaskComplete, onLog, saveRunTimestamp]);
 
-  // Планирование следующего запуска
-  const scheduleNextRun = useCallback(() => {
-    console.log('📅 scheduleNextRun вызван, статус:', status, 'sessionId:', sessionId, 'isInitialized:', isInitializedRef.current);
+  // Планирование следующего запуска (только настройка интервала, БЕЗ первого запуска)
+  const scheduleNextRun = useCallback((runImmediately = false) => {
+    console.log('📅 scheduleNextRun вызван, статус:', status, 'sessionId:', sessionId, 'isInitialized:', isInitializedRef.current, 'runImmediately:', runImmediately);
     
     // Предотвращаем множественные запуски
     if (isInitializedRef.current) {
@@ -161,16 +204,27 @@ export const useAgentScheduler = ({
         runAgentTask();
       }, intervalMs);
 
-      // Запускаем первую задачу сразу
-      console.log('🚀 Планировщик: Запускаем первую задачу через 2 секунды...');
-      setTimeout(() => {
-        console.log('🚀 Планировщик: Выполняем первую задачу...');
-        runAgentTask();
-      }, 2000); // Небольшая задержка для инициализации
+      // Запускаем первую задачу ТОЛЬКО если это ручной запуск
+      if (runImmediately) {
+        // При ручном запуске (нажатие кнопки) флаг уже установлен в startAgent()
+        if (canRunNow()) {
+          console.log('🚀 Планировщик: Ручной запуск - выполняем первую задачу через 2 секунды...');
+          hasManualStartRef.current = true;
+          
+          setTimeout(() => {
+            console.log('🚀 Планировщик: Выполняем первую задачу (ручной запуск)...');
+            runAgentTask();
+          }, 2000);
+        } else {
+          console.log('⏭️ Планировщик: Пропускаем первую задачу - выполнялась недавно');
+        }
+      } else {
+        console.log('⏭️ Планировщик: Только настройка интервала, без немедленного запуска (перезагрузка страницы)');
+      }
     } else {
       console.log('❌ Не можем запустить планировщик: статус =', status, ', sessionId =', sessionId);
     }
-  }, [status, sessionId, settings.intervalHours, runAgentTask]);
+  }, [status, sessionId, settings.intervalHours, runAgentTask, canRunNow]);
 
   // Очистка интервала
   const clearScheduler = useCallback(() => {
@@ -187,16 +241,29 @@ export const useAgentScheduler = ({
   useEffect(() => {
     console.log('🔍 useEffect сработал, статус:', status, 'sessionId:', sessionId, 'intervalRef:', !!intervalRef.current, 'isInitialized:', isInitializedRef.current);
     
-    // Запускаем планировщик автоматически когда статус меняется на running
+    // Проверяем, был ли ручной запуск в этой сессии и когда
+    const manualStartStr = sessionStorage.getItem(MANUAL_START_KEY);
+    const isJustStarted = manualStartStr && (Date.now() - parseInt(manualStartStr)) < 1000; // Менее 1 секунды назад = только что нажали кнопку
+    
+    // Настраиваем планировщик когда статус=running
     if (status === 'running' && sessionId && !isInitializedRef.current) {
-      console.log('✨ Статус изменился на running, автоматически запускаем планировщик');
-      scheduleNextRun();
+      if (manualStartStr && !isJustStarted) {
+        // Перезагрузка страницы (флаг есть и установлен давно) - только настраиваем интервал, БЕЗ запуска
+        console.log('🔄 Перезагрузка страницы: планировщик работает, задача НЕ запускается');
+        scheduleNextRun(false);
+      } else {
+        // Только что нажали кнопку (флаг свежий) ИЛИ первый запуск (флага нет) - запускаем задачу
+        console.log('✨ Ручной запуск кнопкой: запускаем задачу и планировщик');
+        scheduleNextRun(true);
+      }
     }
     
     // Очищаем планировщик если статус изменился на не-running
     if (status !== 'running' && intervalRef.current) {
       console.log('⚠️ Статус изменился на не-running, очищаем планировщик');
       clearScheduler();
+      // Очищаем флаг ручного запуска
+      sessionStorage.removeItem(MANUAL_START_KEY);
     }
 
     // Очистка при размонтировании компонента

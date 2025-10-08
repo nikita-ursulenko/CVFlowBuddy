@@ -102,6 +102,11 @@ export const useAgentState = () => {
       lastRun: new Date()
     };
 
+    // Устанавливаем флаг ручного запуска в sessionStorage
+    // Это предотвратит повторный автозапуск при перезагрузке страницы
+    sessionStorage.setItem('agent_manual_start_session', Date.now().toString());
+    console.log('✅ Флаг ручного запуска установлен в sessionStorage');
+
     setStatus(newStatus);
     saveToStorage(STORAGE_KEYS.STATUS, newStatus);
     addLog('info', 'Агент запущен');

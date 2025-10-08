@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ArrowUp, ArrowDown, FileText, AlertCircle, Briefcase, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, Users } from "lucide-react";
+import { ArrowUp, ArrowDown, FileText, AlertCircle, Briefcase, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, Users, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -293,6 +293,19 @@ export default function Dashboard() {
                       {activity.date}
                     </div>
                   </div>
+                  {activity.url && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full h-8 text-xs"
+                        onClick={() => window.open(activity.url, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Открыть вакансию
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -306,6 +319,7 @@ export default function Dashboard() {
                     <th className="pb-4 font-semibold">Сайт</th>
                     <th className="pb-4 font-semibold">Статус</th>
                     <th className="pb-4 font-semibold">Дата</th>
+                    <th className="pb-4 font-semibold text-center">Ссылка</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,6 +339,20 @@ export default function Dashboard() {
                           </Badge>
                         </td>
                         <td className="py-4 text-sm text-gray-600">{activity.date}</td>
+                        <td className="py-4 text-center">
+                          {activity.url ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              onClick={() => window.open(activity.url, '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

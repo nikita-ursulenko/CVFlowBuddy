@@ -910,10 +910,10 @@ ${pageText.substring(0, 2000)}
         await this.page.waitForLoadState('networkidle');
         await this.page.waitForTimeout(5000);
         
-        // Скриншот после отправки для отладки
-        const screenshotPath = path.join(__dirname, `cv-upload-result-${Date.now()}.png`);
-        await this.page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`📸 Скриншот сохранен: ${screenshotPath}`);
+        // Скриншот после отправки для отладки (закомментировано для экономии места)
+        // const screenshotPath = path.join(__dirname, `cv-upload-result-${Date.now()}.png`);
+        // await this.page.screenshot({ path: screenshotPath, fullPage: true });
+        // console.log(`📸 Скриншот сохранен: ${screenshotPath}`);
       } else {
         console.log('⚠️ Кнопка "Încarcă" не найдена');
       }
@@ -1145,16 +1145,16 @@ ${finalText.substring(0, 3000)}
       await this.page.evaluate(() => window.scrollTo(0, 800));
       await this.page.waitForTimeout(2000);
       
-      // Отладка: сохраняем скриншот
-      const screenshotPath = path.join(__dirname, `vacancies-debug-${Date.now()}.png`);
-      await this.page.screenshot({ path: screenshotPath, fullPage: true });
-      console.log(`📸 Скриншот сохранен: ${screenshotPath}`);
+      // Отладка: сохраняем скриншот (закомментировано)
+      // const screenshotPath = path.join(__dirname, `vacancies-debug-${Date.now()}.png`);
+      // await this.page.screenshot({ path: screenshotPath, fullPage: true });
+      // console.log(`📸 Скриншот сохранен: ${screenshotPath}`);
       
-      // Отладка: выводим часть HTML страницы
-      const pageHTML = await this.page.content();
-      console.log('📄 HTML страницы (первые 2000 символов):');
-      console.log(pageHTML.substring(0, 2000));
-      console.log('...\n');
+      // Отладка: выводим часть HTML страницы (закомментировано)
+      // const pageHTML = await this.page.content();
+      // console.log('📄 HTML страницы (первые 2000 символов):');
+      // console.log(pageHTML.substring(0, 2000));
+      // console.log('...\n');
       
       // ПРАВИЛЬНЫЙ ПОИСК: ищем li.vacancyRow элементы
       console.log('🔍 Ищем элементы вакансий li.vacancyRow...');
@@ -1194,6 +1194,11 @@ ${finalText.substring(0, 3000)}
 
       for (let i = 0; i < Math.min(jobCards.length, maxJobs); i++) {
         const vacancyRow = jobCards[i];
+        
+        console.log(`\n${'='.repeat(70)}`);
+        console.log(`📊 ПРОГРЕСС: ${i + 1} / ${Math.min(jobCards.length, maxJobs)} вакансий`);
+        console.log(`   ✅ Отправлено: ${appliedCount} | ⏭️ Пропущено: ${skippedCount}`);
+        console.log(`${'='.repeat(70)}`);
         
         try {
           // Извлекаем данные вакансии из li.vacancyRow
@@ -1292,12 +1297,12 @@ ${finalText.substring(0, 3000)}
             });
             console.log(`   ✅ Модальное окно полностью загружено!`);
             } catch (e) {
-            console.log(`   ⚠️  Кнопка не стала видимой за 5 секунд`);
+            console.log(`   ⚠️  Кнопка не стала видимой за 5 секунд (это нормально)`);
             
-            // Сохраняем скриншот для отладки
-            const modalScreenshot = path.join(__dirname, `modal-debug-${Date.now()}.png`);
-            await this.page.screenshot({ path: modalScreenshot });
-            console.log(`   📸 Скриншот модального окна: ${modalScreenshot}`);
+            // Сохраняем скриншот для отладки (закомментировано)
+            // const modalScreenshot = path.join(__dirname, `modal-debug-${Date.now()}.png`);
+            // await this.page.screenshot({ path: modalScreenshot });
+            // console.log(`   📸 Скриншот модального окна: ${modalScreenshot}`);
           }
           
           // Проверяем появилось ли модальное окно
@@ -1383,12 +1388,14 @@ ${finalText.substring(0, 3000)}
               
               // Записываем успешную отправку в статистику
               try {
+                const fullUrl = `https://lucru.md${jobData.href}`;
                 const response = await fetch('http://localhost:5050/api/stats/success', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     vacancy: jobData.title,
-                    site: 'lucru.md'
+                    site: 'lucru.md',
+                    url: fullUrl
                   })
                 });
                 if (response.ok) {
@@ -1545,7 +1552,7 @@ ${finalText.substring(0, 3000)}
 // Автоматическая отправка CV на IT вакансии
 app.post('/api/agent/auto-apply-jobs', async (req, res) => {
   try {
-    const { sessionId, cvData, maxJobs = 10, minMatchScore = 70, headless = true } = req.body;
+    const { sessionId, cvData, maxJobs = 10, minMatchScore = 70, headless = true, isScheduled = false } = req.body;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -1556,13 +1563,25 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
 
     let agent = activeAgents.get(sessionId);
     
-    // Если агента нет или браузер закрыт, создаем новый с сохраненными cookies
-    if (!isBrowserActive(agent)) {
-      console.log('🔄 Браузер закрыт, создаем новую сессию с сохраненными cookies...');
+    // Если агента нет - пробуем восстановить из cookies (для автоматизации)
+    if (!agent) {
+      console.log('🔄 Агент не найден, пробуем создать новый с cookies...');
       
+      // Проверяем наличие файла cookies
+      const COOKIES_FILE = path.join(__dirname, 'lucru-cookies.json');
+      if (!fs.existsSync(COOKIES_FILE)) {
+        return res.status(401).json({
+          success: false,
+          message: 'Сессия не найдена и cookies отсутствуют. Выполните вход заново.',
+          needsLogin: true
+        });
+      }
+      
+      try {
+        // Создаём нового агента с cookies
       agent = new SimpleLucruAgent({
-        credentials: { email: '', password: '' }, // Не нужны, используем cookies
-        headless: headless, // Используем переданный параметр
+          credentials: { email: '', password: '' },
+          headless: headless,
         timeout: 30000
       });
       
@@ -1575,13 +1594,55 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
         await agent.cleanup();
         return res.status(401).json({
         success: false,
-          message: 'Сессия истекла, требуется повторный вход'
+            message: 'Cookies истекли. Выполните вход заново.',
+            needsLogin: true
       });
       }
       
-      // Сохраняем нового агента
+        // Сохраняем агента с этим sessionId
       activeAgents.set(sessionId, agent);
-      console.log('✅ Новая сессия создана с cookies');
+        console.log('✅ Агент восстановлен из cookies');
+      } catch (error) {
+        console.error('❌ Ошибка создания агента из cookies:', error);
+        return res.status(401).json({
+          success: false,
+          message: 'Не удалось восстановить сессию из cookies.',
+          needsLogin: true
+        });
+      }
+    }
+    
+    // Если браузер закрыт - восстанавливаем его с cookies
+    if (!isBrowserActive(agent)) {
+      console.log('🔄 Браузер закрыт, восстанавливаем сессию с cookies...');
+      
+      try {
+        // Создаём новый браузер для существующего агента
+        await agent.initialize();
+        
+        // Проверяем авторизацию через cookies
+        const isLoggedIn = await agent.checkIfLoggedInWithCookies();
+        
+        if (!isLoggedIn) {
+          await agent.cleanup();
+          activeAgents.delete(sessionId);
+          return res.status(401).json({
+            success: false,
+            message: 'Сессия истекла. Выполните вход заново.',
+            needsLogin: true
+          });
+        }
+        
+        console.log('✅ Браузер восстановлен с сохранёнными cookies');
+      } catch (error) {
+        console.error('❌ Ошибка восстановления сессии:', error);
+        activeAgents.delete(sessionId);
+        return res.status(401).json({
+          success: false,
+          message: 'Не удалось восстановить сессию. Выполните вход заново.',
+          needsLogin: true
+        });
+      }
     }
 
     if (!cvData) {
@@ -1598,15 +1659,20 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     const result = await agent.autoApplyToITJobs(cvData, { maxJobs, minMatchScore });
 
     if (result.success) {
-      // Закрываем браузер через 5 секунд после завершения автоотправки
-      console.log('⏰ Браузер закроется автоматически через 5 секунд...');
+      // Если это автоматический запуск (от планировщика) - закрываем браузер
+      if (isScheduled) {
+        console.log('🤖 Автоматический запуск завершён. Закрываем браузер через 5 секунд...');
       setTimeout(async () => {
         if (activeAgents.has(sessionId) && agent.browser) {
-          console.log('🔒 Закрываем браузер после автоотправки');
+            console.log('🔒 Закрываем браузер после автоматической отправки');
           await agent.cleanup();
-          console.log('✅ Браузер закрыт');
-        }
-      }, 5000);
+            console.log('✅ Браузер закрыт. Следующий запуск по расписанию.');
+          }
+        }, 5000); // 5 секунд для завершения всех операций
+      } else {
+        // Для ручного запуска - браузер остаётся открытым
+        console.log('✅ Ручная отправка завершена. Браузер остаётся открытым для дальнейшей работы.');
+      }
       
       res.json({
         success: true,
@@ -1617,7 +1683,7 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
         results: result.results
       });
     } else {
-      // Закрываем браузер даже при ошибке
+      // Закрываем браузер при ошибке
       setTimeout(async () => {
         if (agent.browser) {
           await agent.cleanup();
@@ -1642,6 +1708,86 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Проверка статуса агента
+app.post('/api/agent/status', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.json({
+        active: false,
+        message: 'sessionId не указан'
+      });
+    }
+
+    const agent = activeAgents.get(sessionId);
+    
+    if (!agent) {
+      return res.json({
+        active: false,
+        message: 'Сессия не найдена'
+      });
+    }
+
+    const browserActive = isBrowserActive(agent);
+    
+    res.json({
+      active: true,
+      browserActive: browserActive,
+      sessionId: sessionId,
+      message: browserActive ? 'Агент активен и готов к работе' : 'Агент в памяти, но браузер закрыт'
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      active: false,
+      error: error.message
+    });
+  }
+});
+
+// Ручное закрытие агента
+app.post('/api/agent/close', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'sessionId не указан'
+      });
+    }
+
+    const agent = activeAgents.get(sessionId);
+    
+    if (!agent) {
+      return res.json({
+        success: false,
+        message: 'Сессия не найдена'
+      });
+    }
+
+    console.log(`🔒 Ручное закрытие агента: ${sessionId}`);
+    
+    if (agent.browser) {
+      await agent.cleanup();
+    }
+    
+    activeAgents.delete(sessionId);
+    
+    res.json({
+      success: true,
+      message: 'Агент успешно закрыт'
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Statistics endpoints
@@ -1673,7 +1819,7 @@ app.get('/api/stats', async (req, res) => {
 
 app.post('/api/stats/success', async (req, res) => {
   try {
-    const { vacancy, site = 'lucru.md' } = req.body;
+    const { vacancy, site = 'lucru.md', url = '' } = req.body;
     
     // Читаем текущую статистику
     let stats = {
@@ -1717,6 +1863,7 @@ app.post('/api/stats/success', async (req, res) => {
       id: `success_${Date.now()}`,
       vacancy,
       site,
+      url: url, // URL вакансии для ссылки
       status: 'success',
       date: now.toLocaleString('ru-RU', { 
         day: '2-digit', 
@@ -1914,16 +2061,20 @@ app.post('/api/agent/check-cv-status', async (req, res) => {
 
     let agent = activeAgents.get(sessionId);
     
-    // Если агента нет или браузер закрыт, создаем новый с сохраненными cookies
-    if (!isBrowserActive(agent)) {
-      console.log('🔄 Браузер закрыт, создаем новую сессию с сохраненными cookies...');
-      
-      agent = new SimpleLucruAgent({
-        credentials: { email: '', password: '' }, // Не нужны, используем cookies
-        headless: headless, // Используем переданный параметр
-        timeout: 30000
+    // Если агента нет - требуется авторизация
+    if (!agent) {
+      return res.status(401).json({
+        success: false,
+        message: 'Сессия не найдена. Выполните вход заново.'
       });
+    }
+    
+    // Если браузер закрыт - восстанавливаем его с cookies
+    if (!isBrowserActive(agent)) {
+      console.log('🔄 Браузер закрыт, восстанавливаем сессию с cookies...');
       
+      try {
+        // Создаём новый браузер для существующего агента
       await agent.initialize();
       
       // Проверяем авторизацию через cookies
@@ -1931,15 +2082,22 @@ app.post('/api/agent/check-cv-status', async (req, res) => {
       
       if (!isLoggedIn) {
         await agent.cleanup();
+          activeAgents.delete(sessionId);
         return res.status(401).json({
         success: false,
-          message: 'Сессия истекла, требуется повторный вход'
-      });
+            message: 'Сессия истекла. Выполните вход заново.'
+          });
+        }
+        
+        console.log('✅ Браузер восстановлен с сохранёнными cookies');
+      } catch (error) {
+        console.error('❌ Ошибка восстановления сессии:', error);
+        activeAgents.delete(sessionId);
+        return res.status(401).json({
+          success: false,
+          message: 'Не удалось восстановить сессию. Выполните вход заново.'
+        });
       }
-      
-      // Сохраняем нового агента
-      activeAgents.set(sessionId, agent);
-      console.log('✅ Новая сессия создана с cookies');
     }
 
     console.log('\n' + '='.repeat(60));
@@ -1983,15 +2141,17 @@ app.post('/api/agent/check-cv-status', async (req, res) => {
     console.log(`📊 Результат: CV ${cvExists ? 'ЕСТЬ' : 'НЕТ'} на сайте`);
     console.log('='.repeat(60) + '\n');
 
-    // Закрываем браузер через 5 секунд после проверки
-    console.log('⏰ Браузер закроется автоматически через 5 секунд...');
-    setTimeout(async () => {
-      if (activeAgents.has(sessionId) && agent.browser) {
-        console.log('🔒 Закрываем браузер после проверки CV');
-        await agent.cleanup();
-        console.log('✅ Браузер закрыт');
-      }
-    }, 5000);
+    // НЕ закрываем браузер - сессия остаётся активной
+    console.log('✅ Проверка завершена. Браузер остаётся открытым.');
+    
+    // Не закрываем браузер автоматически
+    // setTimeout(async () => {
+    //   if (activeAgents.has(sessionId) && agent.browser) {
+    //     console.log('🔒 Закрываем браузер после проверки CV');
+    //     await agent.cleanup();
+    //     console.log('✅ Браузер закрыт');
+    //   }
+    // }, 5000);
 
     res.json({
       success: true,
@@ -2163,28 +2323,28 @@ app.post('/api/agent/login', async (req, res) => {
       activeAgents.set(sessionId, agent);
       
       console.log('✅ Агент сохранен в памяти');
-      console.log('⏰ Браузер закроется автоматически через 5 секунд...');
+      console.log('✅ Браузер остаётся открытым для работы с агентом');
+      console.log('💡 Сессия активна в течение 30 минут');
       
-      // Закрываем браузер через 5 секунд после успешного входа
-      setTimeout(async () => {
-        try {
-          console.log(`🔍 Проверяем сессию ${sessionId}...`);
-          console.log(`   activeAgents.has: ${activeAgents.has(sessionId)}`);
-          console.log(`   agent.browser: ${agent.browser ? 'существует' : 'null'}`);
-          
-          if (activeAgents.has(sessionId) && agent.browser) {
-            console.log('🔒 Закрываем браузер после успешного входа');
-            await agent.browser.close();
-            console.log('✅ Браузер закрыт');
-            // НЕ удаляем из activeAgents - sessionId нужен для проверки авторизации
-            // activeAgents.delete(sessionId); 
-          } else {
-            console.log('⚠️ Браузер уже закрыт или сессия не найдена');
-          }
-        } catch (error) {
-          console.error('❌ Ошибка при закрытии браузера:', error.message);
-        }
-      }, 5000); // 5 секунд
+      // НЕ закрываем браузер сразу после входа - он нужен для работы!
+      // Браузер будет закрыт только при неактивности через 30 минут
+      // setTimeout(async () => {
+      //   try {
+      //     console.log(`🔍 Проверяем сессию ${sessionId}...`);
+      //     console.log(`   activeAgents.has: ${activeAgents.has(sessionId)}`);
+      //     console.log(`   agent.browser: ${agent.browser ? 'существует' : 'null'}`);
+      //     
+      //     if (activeAgents.has(sessionId) && agent.browser) {
+      //       console.log('🔒 Закрываем браузер после успешного входа');
+      //       await agent.browser.close();
+      //       console.log('✅ Браузер закрыт');
+      //     } else {
+      //       console.log('⚠️ Браузер уже закрыт или сессия не найдена');
+      //     }
+      //   } catch (error) {
+      //     console.error('❌ Ошибка при закрытии браузера:', error.message);
+      //   }
+      // }, 5000);
       
       // Полностью удаляем сессию через 30 минут
       setTimeout(async () => {
@@ -2239,16 +2399,20 @@ app.post('/api/agent/sync-cv', async (req, res) => {
 
     let agent = activeAgents.get(sessionId);
     
-    // Если агента нет или браузер закрыт, создаем новый с сохраненными cookies
-    if (!isBrowserActive(agent)) {
-      console.log('🔄 Браузер закрыт, создаем новую сессию с сохраненными cookies...');
-      
-      agent = new SimpleLucruAgent({
-        credentials: { email: '', password: '' }, // Не нужны, используем cookies
-        headless: headless, // Используем переданный параметр
-        timeout: 30000
+    // Если агента нет - требуется авторизация
+    if (!agent) {
+      return res.status(401).json({
+        success: false,
+        message: 'Сессия не найдена. Выполните вход заново.'
       });
+    }
+    
+    // Если браузер закрыт - восстанавливаем его с cookies
+    if (!isBrowserActive(agent)) {
+      console.log('🔄 Браузер закрыт, восстанавливаем сессию с cookies...');
       
+      try {
+        // Создаём новый браузер для существующего агента
       await agent.initialize();
       
       // Проверяем авторизацию через cookies
@@ -2256,15 +2420,22 @@ app.post('/api/agent/sync-cv', async (req, res) => {
       
       if (!isLoggedIn) {
         await agent.cleanup();
+          activeAgents.delete(sessionId);
         return res.status(401).json({
         success: false,
-          message: 'Сессия истекла, требуется повторный вход'
-      });
+            message: 'Сессия истекла. Выполните вход заново.'
+          });
+        }
+        
+        console.log('✅ Браузер восстановлен с сохранёнными cookies');
+      } catch (error) {
+        console.error('❌ Ошибка восстановления сессии:', error);
+        activeAgents.delete(sessionId);
+        return res.status(401).json({
+          success: false,
+          message: 'Не удалось восстановить сессию. Выполните вход заново.'
+        });
       }
-      
-      // Сохраняем нового агента
-      activeAgents.set(sessionId, agent);
-      console.log('✅ Новая сессия создана с cookies');
     }
 
     console.log('\n' + '='.repeat(60));
@@ -2328,15 +2499,17 @@ app.post('/api/agent/sync-cv', async (req, res) => {
       console.log('\n✅ CV УСПЕШНО ЗАГРУЖЕН НА САЙТ!');
       console.log('='.repeat(60) + '\n');
       
-      // Закрываем браузер через 5 секунд после успешной синхронизации
-      console.log('⏰ Браузер закроется автоматически через 5 секунд...');
-      setTimeout(async () => {
-        if (activeAgents.has(sessionId) && agent.browser) {
-          console.log('🔒 Закрываем браузер после синхронизации CV');
-          await agent.cleanup();
-          console.log('✅ Браузер закрыт');
-        }
-      }, 5000);
+      // НЕ закрываем браузер - пользователь может продолжить работу
+      console.log('✅ Синхронизация завершена. Браузер остаётся открытым.');
+      
+      // Не закрываем браузер автоматически
+      // setTimeout(async () => {
+      //   if (activeAgents.has(sessionId) && agent.browser) {
+      //     console.log('🔒 Закрываем браузер после синхронизации CV');
+      //     await agent.cleanup();
+      //     console.log('✅ Браузер закрыт');
+      //   }
+      // }, 5000);
       
       res.json({
         success: true,
@@ -2386,11 +2559,12 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('\n' + '='.repeat(70));
   console.log('🚀 СЕРВЕР АГЕНТА ЗАПУЩЕН');
   console.log('='.repeat(70));
   console.log(`📡 API доступно: http://localhost:${PORT}`);
+  console.log(`🌐 Сеть: http://0.0.0.0:${PORT} (доступен по IP)`);
   console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📤 Upload CV: http://localhost:${PORT}/api/agent/upload-cv`);
   console.log(`🤖 AI анализ: http://localhost:${PORT}/api/agent/analyze-cv`);
