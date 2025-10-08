@@ -5,12 +5,8 @@ import {
   Globe, 
   FileText, 
   Sparkles, 
-  ScrollText, 
   Settings, 
   Bell,
-  Play,
-  Pause,
-  RefreshCw,
   Menu,
   X
 } from "lucide-react";
@@ -22,12 +18,10 @@ const navItems = [
   { name: "Сайты", path: "/sites", icon: Globe },
   { name: "CV", path: "/cv", icon: FileText },
   { name: "AI", path: "/ai", icon: Sparkles },
-  { name: "Логи", path: "/logs", icon: ScrollText },
   { name: "Настройки", path: "/settings", icon: Settings },
 ];
 
 export default function Layout() {
-  const [isAgentRunning, setIsAgentRunning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -109,34 +103,6 @@ export default function Layout() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            
-            <div className="flex items-center gap-1 md:gap-2">
-              <Button
-                variant={isAgentRunning ? "destructive" : "default"}
-                size="sm"
-                onClick={() => setIsAgentRunning(!isAgentRunning)}
-                className="gap-1 text-xs md:gap-2 md:text-sm"
-              >
-                {isAgentRunning ? (
-                  <>
-                    <Pause className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Остановить</span>
-                    <span className="sm:hidden">Стоп</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-3 w-3 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">Запустить</span>
-                    <span className="sm:hidden">Старт</span>
-                  </>
-                )}
-              </Button>
-              
-              <Button variant="outline" size="sm" className="hidden gap-2 sm:flex">
-                <RefreshCw className="h-4 w-4" />
-                Обновить
-              </Button>
-            </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
@@ -144,11 +110,6 @@ export default function Layout() {
               <Bell className="h-4 w-4 md:h-5 md:w-5" />
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive md:right-1.5 md:top-1.5" />
             </Button>
-            
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-gradient-to-br from-primary to-accent" />
-              <span className="hidden text-sm font-medium lg:block">Администратор</span>
-            </div>
           </div>
         </header>
 

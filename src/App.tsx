@@ -8,7 +8,6 @@ import Dashboard from "./pages/Dashboard";
 import Sites from "./pages/Sites";
 import CV from "./pages/CV";
 import AI from "./pages/AI";
-import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -26,7 +25,6 @@ const App = () => (
             <Route path="/sites" element={<Sites />} />
             <Route path="/cv" element={<CV />} />
             <Route path="/ai" element={<AI />} />
-            <Route path="/logs" element={<Logs />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -1,0 +1,253 @@
+# CVFlow Buddy - Правила разработки
+
+## 🎯 Основные принципы
+
+Ты работаешь с проектом CVFlow Buddy - React приложением с TypeScript, shadcn/ui и Tailwind CSS.
+
+### Архитектура
+
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI**: shadcn/ui + Tailwind CSS
+- **State**: React Query + React Hook Form
+- **Routing**: React Router DOM v6
+- **Icons**: Lucide React
+
+### Обязательные правила
+
+1. **Всегда следуй файлу rules.mdc** - это главный документ с правилами разработки
+2. **Используй TypeScript строго** - никаких `any`, полная типизация
+3. **Следуй принципам shadcn/ui** - используй существующие компоненты
+4. **Применяй Tailwind CSS** - никаких inline стилей
+5. **Разбивай задачи на шаги** - используй todo_write для планирования
+6. **Тестируй изменения** - проверяй линтинг и функциональность
+
+### Процесс работы
+
+#### При получении новой задачи:
+
+1. Создай план с помощью `todo_write`
+2. Проанализируй существующий код
+3. Разбей задачу на подзадачи
+4. Выполняй пошагово с обновлением todo
+5. Тестируй результат
+
+#### При создании компонентов:
+
+1. Создай TypeScript интерфейсы
+2. Используй shadcn/ui компоненты
+3. Добавь Tailwind стили
+4. Обеспечь responsive дизайн
+5. Добавь обработку ошибок
+
+#### При работе с формами:
+
+1. Используй React Hook Form
+2. Добавь Zod валидацию
+3. Примени shadcn/ui компоненты
+4. Добавь обработку ошибок
+5. Обеспечь accessibility
+
+### Структура файлов
+
+```
+src/
+├── components/
+│   ├── ui/           # shadcn/ui компоненты
+│   └── [feature]/    # компоненты по функциональности
+├── pages/            # страницы приложения
+├── hooks/            # кастомные хуки
+├── lib/              # утилиты и API
+└── types/            # TypeScript типы
+```
+
+### Именование
+
+- **Компоненты**: PascalCase (UserCard.tsx)
+- **Функции**: camelCase (getUserData)
+- **Файлы**: kebab-case (user-card.tsx)
+- **Константы**: UPPER_CASE (API_ENDPOINTS)
+- **Типы**: PascalCase (UserData)
+
+### Стилизация
+
+```typescript
+// ✅ Правильно
+<div className="flex items-center gap-4 p-4 bg-white rounded-lg shadow-sm">
+
+// ❌ Неправильно
+<div style={{ display: 'flex', padding: '16px' }}>
+```
+
+### Обработка ошибок
+
+```typescript
+// ✅ Правильно
+try {
+  const data = await fetchData();
+  setData(data);
+} catch (error) {
+  console.error("Failed to fetch data:", error);
+  toast.error("Не удалось загрузить данные");
+}
+```
+
+### API интеграция
+
+```typescript
+// ✅ Используй React Query
+const { data, loading, error } = useQuery({
+  queryKey: ["users"],
+  queryFn: fetchUsers,
+  onError: (error) => {
+    toast.error("Ошибка загрузки пользователей");
+  },
+});
+```
+
+### Компоненты
+
+```typescript
+// ✅ Структура компонента
+interface ComponentProps {
+  title: string;
+  description?: string;
+  onAction?: () => void;
+}
+
+export const Component: React.FC<ComponentProps> = ({
+  title,
+  description,
+  onAction,
+}) => {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">{title}</h2>
+      {description && <p className="text-gray-600">{description}</p>}
+      {onAction && <Button onClick={onAction}>Действие</Button>}
+    </div>
+  );
+};
+```
+
+### Чек-лист перед коммитом
+
+- [ ] Код прошел линтинг
+- [ ] Все типы корректны
+- [ ] Компоненты responsive
+- [ ] Обработка ошибок добавлена
+- [ ] Нет console.log в коде
+- [ ] Следуешь правилам из rules.mdc
+
+### Полезные команды
+
+```bash
+npm run dev          # Запуск dev сервера
+npm run build        # Сборка
+npm run lint         # Линтинг
+npx shadcn@latest add [component]  # Добавление shadcn компонента
+```
+
+### Частые паттерны
+
+#### Создание хука:
+
+```typescript
+export const useFeature = (params: FeatureParams) => {
+  const [data, setData] = useState<FeatureData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.getFeature(params);
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }, [params]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch: fetchData };
+};
+```
+
+#### Создание страницы:
+
+```typescript
+const Page: React.FC = () => {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Заголовок страницы</h1>
+          <p className="text-gray-600">Описание страницы</p>
+        </div>
+
+        <div className="grid gap-6">{/* Контент страницы */}</div>
+      </div>
+    </div>
+  );
+};
+
+export default Page;
+```
+
+### Важные файлы для изучения
+
+1. `rules.mdc` - основные правила разработки
+2. `cursor-prompts.md` - промты для создания функционала
+3. `task-management.md` - система управления задачами
+4. `src/components/Layout.tsx` - основной лейаут
+5. `src/App.tsx` - маршрутизация
+
+### При работе с задачами
+
+1. **Всегда используй todo_write** для планирования
+2. **Разбивай сложные задачи** на простые шаги
+3. **Обновляй прогресс** регулярно
+4. **Тестируй каждый шаг** перед переходом к следующему
+5. **Документируй решения** в комментариях
+
+### Пример планирования задачи
+
+```typescript
+// При получении задачи "Добавить форму пользователя"
+todo_write({
+  merge: false,
+  todos: [
+    {
+      id: "analyze-requirements",
+      content: "Проанализировать требования формы",
+      status: "in_progress",
+    },
+    {
+      id: "create-types",
+      content: "Создать TypeScript типы для формы",
+      status: "pending",
+    },
+    {
+      id: "create-form",
+      content: "Создать компонент формы с React Hook Form",
+      status: "pending",
+    },
+    {
+      id: "add-validation",
+      content: "Добавить Zod валидацию",
+      status: "pending",
+    },
+    { id: "integrate-api", content: "Интегрировать с API", status: "pending" },
+    { id: "test-form", content: "Протестировать форму", status: "pending" },
+  ],
+});
+```
+
+---
+
+**Помни**: Качество кода важнее скорости. Лучше сделать меньше, но качественно, следуя всем правилам.
