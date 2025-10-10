@@ -1133,34 +1133,74 @@ ${finalText.substring(0, 3000)}
       console.log(`   • Технологии: ${cvData.skills?.length || 0}`);
       console.log('='.repeat(70) + '\n');
 
-      // Переходим на IT вакансии
-      const itJobsUrl = 'https://lucru.md/ro/posturi-vacante/categorie/it?recent_date=1';
+      // Переходим на IT вакансии (румынская версия работает стабильнее)
+      const itJobsUrl = 'https://www.lucru.md/ro/posturi-vacante/categorie/it';
       console.log('📍 Переходим на IT вакансии...');
-      await this.page.goto(itJobsUrl);
+      console.log(`   🔗 URL: ${itJobsUrl}`);
+      await this.page.goto(itJobsUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await this.page.waitForLoadState('networkidle');
       await this.page.waitForTimeout(3000);
       console.log('✅ Страница загружена\n');
 
-      // Прокручиваем до вакансий
-      await this.page.evaluate(() => window.scrollTo(0, 800));
-      await this.page.waitForTimeout(2000);
+      // КРИТИЧЕСКИ ВАЖНО: Прокручиваем страницу чтобы загрузить все вакансии (lazy loading)
+      console.log('📜 Прокручиваем страницу для загрузки всех вакансий...');
       
-      // Отладка: сохраняем скриншот (закомментировано)
-      // const screenshotPath = path.join(__dirname, `vacancies-debug-${Date.now()}.png`);
-      // await this.page.screenshot({ path: screenshotPath, fullPage: true });
-      // console.log(`📸 Скриншот сохранен: ${screenshotPath}`);
+      // Прокручиваем страницу постепенно вниз чтобы загрузить все вакансии
+      let previousVacancyCount = 0;
+      let currentVacancyCount = 0;
+      let scrollAttempts = 0;
+      const maxScrollAttempts = 20; // Максимум 20 прокруток
       
-      // Отладка: выводим часть HTML страницы (закомментировано)
-      // const pageHTML = await this.page.content();
-      // console.log('📄 HTML страницы (первые 2000 символов):');
-      // console.log(pageHTML.substring(0, 2000));
-      // console.log('...\n');
+      do {
+        // Прокрутка вниз
+        await this.page.evaluate(() => {
+          window.scrollBy(0, 1000); // Прокрутка на 1000px вниз
+        });
+        await this.page.waitForTimeout(1500); // Ждем загрузки новых вакансий
+        
+        // Считаем текущее количество вакансий
+        const currentRows = await this.page.$$('li.vacancyRow');
+        currentVacancyCount = currentRows.length;
+        
+        console.log(`   📜 Прокрутка ${scrollAttempts + 1}: найдено ${currentVacancyCount} вакансий`);
+        
+        scrollAttempts++;
+        
+        // Если количество не изменилось - больше вакансий нет
+        if (currentVacancyCount === previousVacancyCount) {
+          console.log(`   ✅ Достигнут конец списка (вакансий больше нет)`);
+          break;
+        }
+        
+        previousVacancyCount = currentVacancyCount;
+        
+        // Если достаточно вакансий для обработки - останавливаем прокрутку
+        if (currentVacancyCount >= maxJobs) {
+          console.log(`   ✅ Загружено достаточно вакансий: ${currentVacancyCount} >= ${maxJobs}`);
+          break;
+        }
+        
+      } while (scrollAttempts < maxScrollAttempts);
+      
+      console.log(`📋 Всего загружено вакансий после прокрутки: ${currentVacancyCount}\n`);
+      
+      // Прокручиваем обратно наверх перед началом обработки
+      await this.page.evaluate(() => window.scrollTo(0, 0));
+      await this.page.waitForTimeout(1000);
       
       // ПРАВИЛЬНЫЙ ПОИСК: ищем li.vacancyRow элементы
-      console.log('🔍 Ищем элементы вакансий li.vacancyRow...');
+      console.log('🔍 Собираем все элементы вакансий li.vacancyRow...');
       
       const vacancyRows = await this.page.$$('li.vacancyRow');
-      console.log(`📋 Найдено вакансий: ${vacancyRows.length}`);
+      console.log(`📋 Найдено вакансий для обработки: ${vacancyRows.length}`);
+      
+      // ОТЛАДКА: Сохраняем HTML первой вакансии для анализа
+      if (vacancyRows.length > 0) {
+        const firstVacancyHTML = await vacancyRows[0].evaluate(el => el.outerHTML);
+        console.log('\n🔍 HTML первой вакансии (первые 800 символов):');
+        console.log(firstVacancyHTML.substring(0, 800));
+        console.log('...\n');
+      }
       
       // Обновляем статистику сайта
       try {
@@ -1200,24 +1240,117 @@ ${finalText.substring(0, 3000)}
         console.log(`   ✅ Отправлено: ${appliedCount} | ⏭️ Пропущено: ${skippedCount}`);
         console.log(`${'='.repeat(70)}`);
         
+        // КРИТИЧЕСКИ ВАЖНО: Закрываем любые открытые модальные окна и overlay ПЕРЕД обработкой вакансии
+        try {
+          console.log(`   🧹 Очистка: Закрываем старые модальные окна и overlay...`);
+          await this.page.evaluate(() => {
+            // Закрываем overlay
+            const overlay = document.querySelector('#window_over, .overlay');
+            if (overlay) {
+              overlay.style.display = 'none';
+              overlay.remove();
+            }
+            
+            // Закрываем модальные окна
+            const modals = document.querySelectorAll('#light_window, .mw_wrap, .modal, .popup');
+            modals.forEach(modal => {
+              modal.style.display = 'none';
+            });
+            
+            // Убираем overflow:hidden с body
+            document.body.style.overflow = '';
+          });
+          await this.page.waitForTimeout(500);
+        } catch (cleanupError) {
+          console.log(`   ⚠️  Ошибка очистки (не критично): ${cleanupError.message}`);
+        }
+        
         try {
           // Извлекаем данные вакансии из li.vacancyRow
           const jobData = await vacancyRow.evaluate(el => {
-            // Ищем ссылку на вакансию
-            const link = el.querySelector('a.vacancyShowPopup');
-            const title = link?.textContent?.trim() || '';
-            const href = link?.getAttribute('href') || '';
+            // НОВЫЙ ПОДХОД: Ищем любую ссылку с href содержащим /lucru/ или /ro/
+            const allLinks = el.querySelectorAll('a');
+            let link = null;
             
-            // Ищем кнопку CV для получения ID
-            const cvButton = el.querySelector('a.cat_blue_btn');
-            const vacancyId = cvButton?.getAttribute('data-caid') || '';
-            const companyId = cvButton?.getAttribute('data-cid') || '';
+            // Находим первую ссылку ведущую на вакансию
+            for (const a of allLinks) {
+              const href = a.getAttribute('href') || '';
+              if (href.includes('/lucru/') || href.includes('/ro/')) {
+                link = a;
+                break;
+              }
+            }
             
-            return { title, href, vacancyId, companyId };
+            // Если не нашли через href - пробуем старые селекторы
+            if (!link) link = el.querySelector('a.vacancyShowPopup');
+            if (!link) link = el.querySelector('a.vacancy-title');
+            
+            // Если всё равно нет ссылки - пытаемся взять название из innerText
+            let title = '';
+            let href = '';
+            
+            if (link) {
+              title = link.textContent?.trim() || '';
+              href = link.getAttribute('href') || '';
+            } else {
+              // Fallback: извлекаем из innerText (первая непустая строка)
+              const lines = (el.innerText || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              title = lines[0] || '';
+              href = '';
+            }
+            
+            // Ищем кнопку CV агрессивно - ПО ВСЕМ возможным признакам
+            let cvButton = null;
+            
+            // 1. По классам
+            cvButton = el.querySelector('a.cat_blue_btn');
+            if (!cvButton) cvButton = el.querySelector('a[class*="blue_btn"]');
+            if (!cvButton) cvButton = el.querySelector('a[class*="cv-btn"]');
+            if (!cvButton) cvButton = el.querySelector('a[class*="apply"]');
+            
+            // 2. По тексту внутри ссылки
+            if (!cvButton) {
+              const links = el.querySelectorAll('a');
+              for (const a of links) {
+                const text = (a.textContent || '').toLowerCase();
+                if (text.includes('cv') || text.includes('trimite') || text.includes('aplică')) {
+                  cvButton = a;
+                  break;
+                }
+              }
+            }
+            
+            // 3. По data-атрибутам
+            if (!cvButton) cvButton = el.querySelector('a[data-caid]');
+            if (!cvButton) cvButton = el.querySelector('a[data-vacancy-id]');
+            
+            // 4. По href
+            if (!cvButton) cvButton = el.querySelector('a[href*="sendcv"]');
+            if (!cvButton) cvButton = el.querySelector('a[href*="apply"]');
+            
+            const vacancyId = cvButton?.getAttribute('data-caid') || cvButton?.getAttribute('data-id') || cvButton?.getAttribute('data-vacancy-id') || '';
+            const companyId = cvButton?.getAttribute('data-cid') || cvButton?.getAttribute('data-company-id') || '';
+            
+            // Отладка: смотрим что внутри элемента
+            const debugInfo = {
+              hasLink: !!link,
+              linkSelector: link ? link.className : 'not found',
+              hasCVButton: !!cvButton,
+              cvButtonClass: cvButton ? cvButton.className : 'not found',
+              allLinksCount: allLinks.length,
+              innerText: el.innerText?.substring(0, 100) || 'empty'
+            };
+            
+            return { title, href, vacancyId, companyId, debugInfo };
           });
           
+          // Выводим отладочную информацию для первых 3 вакансий
+          if (i < 3) {
+            console.log(`   🔍 Debug вакансии ${i + 1}:`, jobData.debugInfo);
+          }
+          
           if (!jobData.title) {
-            console.log(`   ⏭️  Пропускаем: нет названия`);
+            console.log(`   ⏭️  Пропускаем: нет названия (debug:`, jobData.debugInfo?.innerText?.substring(0, 50), '...)');
             continue;
           }
 
@@ -1285,9 +1418,9 @@ ${finalText.substring(0, 3000)}
           console.log(`   ✅ Кнопка CV найдена, кликаем...`);
           await cvButton.click();
           
-          // ШАГ 3: Ждем появления модального окна (до 5 секунд)
-          console.log(`   ⏳ Ждем появления модального окна...`);
-              await this.page.waitForTimeout(2000);
+          // ШАГ 3: Ждем появления модального окна (увеличено до 5 секунд)
+          console.log(`   ⏳ Ждем появления модального окна (5 сек)...`);
+          await this.page.waitForTimeout(5000);
           
           // Дополнительное ожидание: ждем пока кнопка станет видимой
           try {
@@ -1308,7 +1441,23 @@ ${finalText.substring(0, 3000)}
           // Проверяем появилось ли модальное окно
           const modalText = await this.page.evaluate(() => document.body.innerText);
           
-          if (modalText.includes('Trimite CV-ul') || modalText.includes('ATAȘEAZĂ CV-UL')) {
+          // Дебаг: выводим текст модального окна
+          console.log(`   📝 Текст на странице (500 символов):`, modalText.substring(0, 500));
+          
+          // Проверяем наличие модального окна по разным признакам (румынский и русский)
+          const modalIndicators = [
+            'Trimite CV-ul',      // Румынский: Отправить CV
+            'ATAȘEAZĂ CV-UL',    // Румынский: Прикрепить CV
+            'Отправить резюме',   // Русский
+            'Aplică',             // Румынский: Применить
+            'Aplicați',           // Румынский: Подать заявку
+            'aplicare',           // румынский: подача заявки
+            'Anexează CV'         // Румынский: Прикрепить CV
+          ];
+          
+          const hasModal = modalIndicators.some(indicator => modalText.includes(indicator));
+          
+          if (hasModal) {
             console.log(`   📋 Модальное окно появилось!`);
             
             // ШАГ 4: Ищем кнопку отправки в модальном окне (правильный селектор)
@@ -1469,6 +1618,9 @@ ${finalText.substring(0, 3000)}
               
               appliedCount++;
               results.push({ job: jobData.title, status: 'applied' });
+              
+              // ВАЖНО: Логируем промежуточный прогресс для мониторинга
+              console.log(`   📊 Промежуточный итог: Отправлено ${appliedCount} из ${maxJobs} CV`);
               
               // ШАГ 6: Скрываем вакансию после отправки
               console.log(`   👁️  Скрываем вакансию из списка...`);
@@ -1659,19 +1811,26 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     const result = await agent.autoApplyToITJobs(cvData, { maxJobs, minMatchScore });
 
     if (result.success) {
+      console.log(`\n✅ Отправка завершена! Результат: ${result.appliedCount} отправлено, ${result.skippedCount} пропущено`);
+      
       // Если это автоматический запуск (от планировщика) - закрываем браузер
       if (isScheduled) {
-        console.log('🤖 Автоматический запуск завершён. Закрываем браузер через 5 секунд...');
-      setTimeout(async () => {
-        if (activeAgents.has(sessionId) && agent.browser) {
+        console.log('🤖 Автоматический запуск завершён. Закрываем браузер через 10 секунд...');
+        setTimeout(async () => {
+          if (activeAgents.has(sessionId) && agent.browser) {
             console.log('🔒 Закрываем браузер после автоматической отправки');
-          await agent.cleanup();
-            console.log('✅ Браузер закрыт. Следующий запуск по расписанию.');
+            try {
+              await agent.cleanup();
+              console.log('✅ Браузер закрыт. Следующий запуск по расписанию.');
+            } catch (e) {
+              console.log('⚠️  Ошибка закрытия браузера:', e.message);
+            }
           }
-        }, 5000); // 5 секунд для завершения всех операций
+        }, 10000); // 10 секунд для завершения всех операций
       } else {
-        // Для ручного запуска - браузер остаётся открытым
-        console.log('✅ Ручная отправка завершена. Браузер остаётся открытым для дальнейшей работы.');
+        // Для ручного запуска (разовой отправки) - браузер НЕ закрываем
+        console.log('✅ Разовая отправка завершена. Браузер остаётся открытым для дальнейшей работы.');
+        console.log('💡 Браузер можно закрыть вручную через UI или он закроется через 30 минут неактивности.');
       }
       
       res.json({

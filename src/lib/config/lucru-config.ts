@@ -2,7 +2,7 @@ export interface LucruMdConfig {
   siteName: 'lucru.md';
   baseUrl: 'https://www.lucru.md';
   loginUrl: 'https://www.lucru.md/ru/login';
-  jobsUrl: 'https://www.lucru.md/ru/posturi-vacante/categorie/it?recent_date=1';
+  jobsUrl: 'https://www.lucru.md/ro/posturi-vacante/categorie/it';
   email?: string;
   password?: string;
   credentials: {
@@ -12,6 +12,11 @@ export interface LucruMdConfig {
   cvFilePath: string;
   headless: boolean;
   timeout: number;
+  settings: {
+    maxCVDaily: number;
+    intervalHours: number;
+    headless: boolean;
+  };
   selectors: {
     loginForm: {
       emailInput: string;
@@ -44,7 +49,7 @@ export const createLucruConfig = (overrides?: Partial<LucruMdConfig>): LucruMdCo
     siteName: 'lucru.md',
     baseUrl: 'https://www.lucru.md',
     loginUrl: 'https://www.lucru.md/ru/login',
-    jobsUrl: 'https://www.lucru.md/ru/posturi-vacante/categorie/it?recent_date=1',
+    jobsUrl: 'https://www.lucru.md/ro/posturi-vacante/categorie/it',
     credentials: {
       email: '',
       password: ''
@@ -52,6 +57,11 @@ export const createLucruConfig = (overrides?: Partial<LucruMdConfig>): LucruMdCo
     cvFilePath: '',
     headless: true,
     timeout: 30000,
+    settings: {
+      maxCVDaily: 20,
+      intervalHours: 4,
+      headless: true
+    },
     selectors: {
       loginForm: {
         emailInput: 'input[type="email"], input[name="email"], input[placeholder*="email"]',

@@ -219,6 +219,58 @@ export class AgentServerAPI {
       };
     }
   }
+
+  async closeAgent(sessionId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/close`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+        signal: AbortSignal.timeout(10000) // 10 секунд для закрытия
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Agent server close error:', error);
+      return {
+        success: false,
+        message: 'Не удалось закрыть агента'
+      };
+    }
+  }
+
+  async checkAgentStatus(sessionId: string): Promise<{
+    active: boolean;
+    browserActive: boolean;
+    message: string;
+  }> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+        signal: AbortSignal.timeout(5000)
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Agent server status check error:', error);
+      return {
+        active: false,
+        browserActive: false,
+        message: 'Не удалось проверить статус агента'
+      };
+    }
+  }
 }
 
 export const agentServerAPI = new AgentServerAPI();

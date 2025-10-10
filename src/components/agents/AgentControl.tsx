@@ -288,7 +288,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     }
   };
 
-  // Запуск автоматической отправки на вакансии
+  // Запуск автоматической отправки на вакансии с мониторингом прогресса
   const handleAutoApply = async () => {
     console.log('🔍 Отладка автоотправки:');
     console.log('   isLoggedIn:', isLoggedIn);
@@ -309,22 +309,123 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     setIsAutoApplying(true);
     setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
 
+    // Приоритет: 1) settings из AgentState, 2) config, 3) 20 по умолчанию
+    const maxJobs = settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
+    console.log('📊 Разовая отправка: maxJobs =', maxJobs, '(из settings.maxCVDaily =', settings.maxCVDaily, ')');
+    
+    // Запоминаем начальное количество для отслеживания прогресса ЭТОЙ сессии
+    const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+    let sessionStartCount = 0;
     try {
-      toast.info('🤖 Запуск автоотправки CV на подходящие IT вакансии...');
+      const statsResponse = await fetch(`${baseUrl}/api/stats`);
+      if (statsResponse.ok) {
+        const serverStats = await statsResponse.json();
+        sessionStartCount = serverStats.totalSent || 0;
+        console.log(`📊 Начальное количество отправленных CV: ${sessionStartCount}`);
+      }
+    } catch (e) {
+      console.log('⚠️ Не удалось получить начальную статистику');
+    }
+    
+    let lastProgress = 0;
+    let noProgressCount = 0;
+    let isCompleted = false;
+    
+    // Интервал мониторинга прогресса (каждые 5 секунд для реального времени)
+    const progressMonitor = setInterval(async () => {
+      if (isCompleted) {
+        clearInterval(progressMonitor);
+        return;
+      }
+
+      try {
+        // Получаем статистику с сервера
+        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+        const response = await fetch(`${baseUrl}/api/stats`);
+        
+        if (response.ok) {
+          const serverStats = await response.json();
+          const totalSent = serverStats.totalSent || 0;
+          const recentActivity = serverStats.recentActivity || [];
+          
+          // Вычисляем прогресс ТЕКУЩЕЙ сессии (а не общий)
+          const currentSessionProgress = totalSent - sessionStartCount;
+          
+          // Обновляем UI с прогрессом текущей сессии
+          const displayProgress = Math.min(currentSessionProgress, maxJobs);
+          setAutoApplyProgress(`Отправка CV: ${displayProgress} / ${maxJobs}`);
+          console.log(`📊 Мониторинг: ${displayProgress} / ${maxJobs} (total: ${totalSent}, start: ${sessionStartCount})`);
+          
+          // Проверяем есть ли свежая активность (за последние 30 секунд)
+          const hasRecentActivity = recentActivity.some((activity: any) => {
+            if (!activity.timestamp) return false;
+            const activityTime = new Date(activity.timestamp).getTime();
+            const now = Date.now();
+            return (now - activityTime) < 30000; // 30 секунд
+          });
+          
+          if (currentSessionProgress === lastProgress && !hasRecentActivity) {
+            noProgressCount++;
+            console.log(`⚠️ Нет прогресса отправки: ${noProgressCount} раз подряд (${noProgressCount * 5} сек)`);
+            
+            // Если 24 раза подряд нет прогресса (2 минуты = 24 × 5 сек) - перезапускаем агента
+            if (noProgressCount >= 24) {
+              console.log('🔄 Обнаружено зависание (2 минуты без прогресса). Перезапуск агента...');
+              setAutoApplyProgress('Агент завис. Перезапуск...');
+              toast.warning('⚠️ Агент завис (2 мин без прогресса). Выполняется перезапуск...');
+              
+              // Закрываем старую сессию агента
+              try {
+                await agentServerAPI.closeAgent(localSessionId);
+              } catch (e) {
+                console.log('Ошибка закрытия агента:', e);
+              }
+              
+              // Небольшая пауза
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Сбрасываем счетчик
+              noProgressCount = 0;
+              lastProgress = currentSessionProgress;
+              
+              toast.info('🔄 Агент перезапущен. Продолжаем отправку...');
+            }
+          } else {
+            // Есть прогресс - сбрасываем счетчик
+            if (currentSessionProgress > lastProgress) {
+              lastProgress = currentSessionProgress;
+              noProgressCount = 0;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка мониторинга прогресса:', error);
+      }
+    }, 5000); // Каждые 5 секунд для плавного обновления UI
+
+    try {
+      toast.info(`🤖 Запуск автоотправки на ${maxJobs} вакансий...`);
+      setAutoApplyProgress(`Отправка CV: 0 / ${maxJobs}`);
       
       const result = await agentServerAPI.autoApplyToJobs(
         localSessionId,
         cvFile.aiAnalysis,
         { 
-          maxJobs: config.settings.maxCVDaily, // Используем настройку из конфига
+          maxJobs: maxJobs,
           minMatchScore: 70,
-          headless: config.settings.headless
+          headless: settings.headless ?? config?.settings?.headless ?? true
         }
       );
+
+      isCompleted = true;
+      clearInterval(progressMonitor);
 
       if (result.success) {
         setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
         toast.success(`✅ ${result.message}`);
+        
+        // Обновляем статистику
+        await loadStatsFromServer();
         
         // Показываем детали
         if (result.results && result.results.length > 0) {
@@ -332,10 +433,20 @@ export const AgentControl: React.FC<AgentControlProps> = ({
           console.log('📊 Результаты автоотправки:', applied);
         }
       } else {
-        throw new Error(result.message);
+        // Проверяем нужна ли авторизация
+        if (result.message && result.message.includes('Выполните вход')) {
+          toast.error('❌ Сессия истекла. Войдите заново.');
+          setLoggedIn(false);
+          saveSessionId(null);
+          setLocalSessionId(null);
+        } else {
+          throw new Error(result.message);
+        }
       }
 
     } catch (error) {
+      isCompleted = true;
+      clearInterval(progressMonitor);
       console.error('Auto-apply error:', error);
       toast.error(`❌ Ошибка автоотправки: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
       setAutoApplyProgress('');
@@ -343,7 +454,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
       setTimeout(() => {
         setIsAutoApplying(false);
         setAutoApplyProgress('');
-      }, 3000);
+      }, 5000);
     }
   };
 
@@ -660,10 +771,34 @@ export const AgentControl: React.FC<AgentControlProps> = ({
           )}
           
           {isAutoApplying && autoApplyProgress && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="text-sm text-blue-700 flex items-center gap-2 font-medium">
-                <Zap className="h-4 w-4 animate-pulse text-blue-500" />
-                {autoApplyProgress}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-lg p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Zap className="h-5 w-5 text-blue-600 animate-pulse" />
+                    <div className="absolute inset-0 h-5 w-5 bg-blue-400 rounded-full animate-ping opacity-25"></div>
+                  </div>
+                  <span className="text-sm font-semibold text-blue-900">Разовая отправка</span>
+                </div>
+                <Badge variant="outline" className="bg-white border-blue-400 text-blue-700">
+                  В процессе
+                </Badge>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="text-sm text-blue-700 font-medium">
+                  {autoApplyProgress}
+                </div>
+                
+                {/* Анимированный прогресс-бар */}
+                <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse"></div>
+                </div>
+                
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <Activity className="h-3 w-3" />
+                  <span>Мониторинг прогресса активен</span>
+                </div>
               </div>
             </div>
           )}

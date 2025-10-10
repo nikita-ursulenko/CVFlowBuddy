@@ -15,9 +15,26 @@ export default function Sites() {
     const savedConfig = localStorage.getItem('cvflow_lucru_config');
     if (savedConfig) {
       try {
-        setLucruConfig(JSON.parse(savedConfig));
+        const parsed = JSON.parse(savedConfig);
+        
+        // Миграция: добавляем settings если их нет
+        if (!parsed.settings) {
+          parsed.settings = {
+            maxCVDaily: 20,
+            intervalHours: 4,
+            headless: true
+          };
+          console.log('✅ Конфигурация обновлена: добавлено поле settings');
+        }
+        
+        setLucruConfig(parsed);
+        
+        // Сохраняем обновлённую конфигурацию
+        localStorage.setItem('cvflow_lucru_config', JSON.stringify(parsed));
       } catch (error) {
         console.error('Failed to load saved config:', error);
+        // При ошибке используем конфигурацию по умолчанию
+        setLucruConfig(createLucruConfig({}));
       }
     }
   }, []);
