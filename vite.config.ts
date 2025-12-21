@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 5004,
+    port: 8000,
     allowedHosts: [
       '.serveo.net',      // Для SSH туннелей
       '.loca.lt',         // Для localtunnel

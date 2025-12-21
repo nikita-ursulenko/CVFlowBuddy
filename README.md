@@ -1,120 +1,148 @@
-# Welcome to your Lovable project
+# 🚀 CVFlow Buddy
 
-## Project info
+**Автоматизированная система для отправки CV на вакансии**
 
-**URL**: https://lovable.dev/projects/07168ff3-ba48-4f10-af0d-1cabb95a1157
+CVFlow Buddy - это интеллектуальная система автоматизации, которая помогает автоматически отправлять ваше резюме на IT вакансии на сайте [lucru.md](https://lucru.md). Система использует AI для анализа резюме и автоматизирует весь процесс поиска и отправки CV на подходящие вакансии.
 
-## How can I edit this code?
+## ✨ Основные возможности
 
-There are several ways of editing your application.
+- 🤖 **AI-анализ резюме** - автоматический анализ CV с помощью Groq AI для извлечения ключевой информации
+- 🔐 **Автоматическая авторизация** - вход в аккаунт lucru.md с сохранением сессии
+- 📤 **Автоматическая отправка CV** - массовая отправка резюме на IT вакансии
+- ⏰ **Планировщик задач** - настройка автоматической отправки по расписанию
+- 📊 **Статистика отправок** - отслеживание успешных отправок и ошибок
+- 🎯 **Умный подбор вакансий** - автоматический поиск и фильтрация подходящих вакансий
+- 💼 **Синхронизация CV** - автоматическая загрузка и обновление CV на сайте
 
-**Use Lovable**
+## 🛠️ Технологии
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/07168ff3-ba48-4f10-af0d-1cabb95a1157) and start prompting.
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express, Playwright (автоматизация браузера)
+- **AI**: Groq API (Llama 3.3 70B) для анализа резюме
+- **Автоматизация**: Playwright для работы с браузером
 
-Changes made via Lovable will be committed automatically to this repo.
+## 📋 Требования
 
-**Use your preferred IDE**
+- Node.js v18+ и npm
+- Playwright браузеры (устанавливаются автоматически)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🚀 Быстрый старт
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 1. Установка зависимостей
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+npm install
+npx playwright install
 ```
 
-**Edit a file directly in GitHub**
+### 2. Запуск серверов
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/07168ff3-ba48-4f10-af0d-1cabb95a1157) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-
-## 🚀 Быстрый запуск серверов
-
-### Автоматический запуск (рекомендуется)
+**Автоматический запуск (рекомендуется):**
 
 ```bash
 bash START-SERVERS.sh
 ```
 
-### Ручной запуск
+**Ручной запуск:**
 
 1. **Backend сервер** (порт 5050):
 ```bash
 node agent-server-simple.js
 ```
 
-2. **Frontend сервер** (порт 5004):
+2. **Frontend сервер** (порт 8000):
 ```bash
 npm run dev
 ```
 
-### Доступ к приложению
+### 3. Доступ к приложению
 
-После запуска серверов, откройте браузер:
+После запуска серверов откройте браузер:
 
-- **Локально**: http://localhost:5004
-- **По IP**: http://10.211.55.5:5004 (замените на ваш IP)
+- **Локально**: http://localhost:8000
+- **По IP**: http://YOUR_IP:8000
 
 ### Получить IP-адрес
 
 ```bash
-hostname -I | awk '{print $1}'
+hostname -I | awk '{print $1}'  # Linux
+ipconfig getifaddr en0          # macOS
 ```
 
-### Остановка серверов
+## 📖 Использование
+
+### 1. Загрузка CV
+
+1. Перейдите в раздел **CV** → **Загрузить CV**
+2. Выберите PDF файл с резюме
+3. Дождитесь автоматического AI-анализа
+
+### 2. Авторизация
+
+1. Нажмите **"Войти в Lucru.md"**
+2. Введите email и пароль
+3. Система сохранит сессию для дальнейшей работы
+
+### 3. Синхронизация CV
+
+1. Перейдите в раздел **CV** → **Синхронизация**
+2. Нажмите **"Синхронизировать CV"**
+3. Система автоматически загрузит CV на сайт
+
+### 4. Автоматическая отправка
+
+1. Перейдите в раздел **Автоагенты** → **Настройки**
+2. Настройте параметры:
+   - Максимум CV в день (10/20/50)
+   - Интервал проверки (1/2/3/6/12/24 часа)
+   - Рабочие часы
+3. Нажмите **"Запустить автоотправку"**
+
+## 🔧 Настройка
+
+### Порт Frontend
+
+По умолчанию frontend запускается на порту **8000**. Чтобы изменить порт, отредактируйте `vite.config.ts`:
+
+```typescript
+server: {
+  port: 8000, // Измените на нужный порт
+}
+```
+
+### Порт Backend
+
+Backend по умолчанию использует порт **5050**. Чтобы изменить, установите переменную окружения:
+
+```bash
+PORT=5050 node agent-server-simple.js
+```
+
+## 📁 Структура проекта
+
+```
+cvflow-buddy/
+├── src/
+│   ├── components/      # React компоненты
+│   │   ├── agents/     # Компоненты автоагентов
+│   │   ├── ai/         # AI функции
+│   │   ├── cv/         # Работа с CV
+│   │   └── jobs/       # Поиск вакансий
+│   ├── hooks/          # React хуки
+│   ├── lib/            # Утилиты и API
+│   └── pages/          # Страницы приложения
+├── agent-server-simple.js  # Backend сервер
+├── uploads/            # Загруженные CV файлы
+└── stats.json          # Статистика отправок
+```
+
+## 🛑 Остановка серверов
 
 ```bash
 pkill -f "node"
 ```
 
----
-
-**Требования**: Node.js v18+ и npm
-
+Или остановите процессы вручную через `Ctrl+C` в терминалах.
 
 ## ⚠️ Важно для ARM64 систем (Apple Silicon, Parallels ARM)
 
@@ -140,3 +168,24 @@ npx playwright install
 
 Chromium будет установлен в: `~/.cache/ms-playwright/chromium-*/chrome-linux/chrome`
 
+## 📚 Дополнительная документация
+
+- [QUICK-START.md](./QUICK-START.md) - Быстрый старт автоотправки
+- [AGENT-GUIDE.md](./AGENT-GUIDE.md) - Руководство по автоагенту
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Решение проблем
+- [FAQ.md](./FAQ.md) - Частые вопросы
+- [SETUP-24-7.md](./SETUP-24-7.md) - Настройка для работы 24/7
+
+## 🔒 Безопасность
+
+- Cookies и сессии хранятся локально
+- Пароли не сохраняются, только сессионные cookies
+- Все данные обрабатываются локально
+
+## 📝 Лицензия
+
+Private project
+
+---
+
+**Создано с ❤️ для автоматизации поиска работы**
