@@ -82,13 +82,32 @@ export default function CV() {
         toast.info('Запуск AI анализа CV...');
         
         try {
+          // Получаем API ключ из настроек AI
+          const aiSettings = localStorage.getItem('cvflow_ai_settings');
+          let apiKey = '';
+          if (aiSettings) {
+            try {
+              const settings = JSON.parse(aiSettings);
+              apiKey = settings.config?.apiKey || '';
+            } catch (e) {
+              console.error('Ошибка чтения настроек AI:', e);
+            }
+          }
+          
+          if (!apiKey) {
+            toast.error('❌ Groq API ключ не настроен. Перейдите в раздел AI → Настройки и укажите API ключ');
+            setIsAnalyzing(false);
+            return;
+          }
+          
           // Читаем контент CV через сервер
           const baseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`;
           const response = await fetch(`${baseUrl}/api/agent/analyze-cv`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              filePath: cvFileData.filePath
+              filePath: cvFileData.filePath,
+              apiKey: apiKey
             })
           });
           

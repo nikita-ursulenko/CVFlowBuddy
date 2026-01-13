@@ -32,7 +32,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
   onConfigChange,
   onSessionUpdate
 }) => {
-  const { cvFile, isLoggedIn, setLoggedIn, sessionId, cvExistsOnSite, saveSessionId, saveCVExistsStatus } = useCV();
+  const { cvFile, isLoggedIn, setLoggedIn, sessionId, cvExistsOnSite, saveSessionId, saveCVExistsStatus, saveAIAnalysis } = useCV();
   const { 
     status: agentStatus, 
     settings, 
@@ -301,9 +301,119 @@ export const AgentControl: React.FC<AgentControlProps> = ({
       return;
     }
 
-    if (!cvFile || !cvFile.aiAnalysis) {
-      toast.error('Сначала загрузите и проанализируйте CV');
+    if (!cvFile) {
+      toast.error('Сначала загрузите CV файл в разделе CV');
       return;
+    }
+
+    // Если CV загружен, но нет AI анализа - запускаем анализ автоматически
+    if (!cvFile.aiAnalysis) {
+      if (!cvFile.filePath) {
+        toast.error('CV файл загружен, но путь к файлу не найден. Перезагрузите CV файл.');
+        return;
+      }
+
+      toast.info('🤖 CV загружен, но нет AI анализа. Запускаем анализ автоматически...');
+      
+      // Получаем API ключ из настроек AI
+      const aiSettings = localStorage.getItem('cvflow_ai_settings');
+      let apiKey = '';
+      if (aiSettings) {
+        try {
+          const settings = JSON.parse(aiSettings);
+          apiKey = settings.config?.apiKey || '';
+        } catch (e) {
+          console.error('Ошибка чтения настроек AI:', e);
+        }
+      }
+      
+      if (!apiKey) {
+        toast.error('❌ Groq API ключ не настроен. Перейдите в раздел AI → Настройки и укажите API ключ');
+        return;
+      }
+      
+      try {
+        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+        const response = await fetch(`${baseUrl}/api/agent/analyze-cv`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filePath: cvFile.filePath,
+            apiKey: apiKey
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Сохраняем результаты AI анализа через хук
+          saveAIAnalysis(data.analysis);
+          
+          toast.success('✅ AI анализ завершен! Продолжаем отправку...');
+          
+          // Используем анализ напрямую для отправки (не дожидаясь обновления состояния)
+          // Продолжаем выполнение функции ниже, используя data.analysis
+          const aiAnalysis = data.analysis;
+          
+          // Переходим к отправке, используя полученный анализ
+          setIsAutoApplying(true);
+          setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
+
+          const maxJobs = settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
+          console.log('📊 Разовая отправка: maxJobs =', maxJobs);
+          
+          // Запоминаем начальное количество для отслеживания прогресса
+          const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
+          let sessionStartCount = 0;
+          try {
+            const statsResponse = await fetch(`${baseUrl}/api/stats`);
+            if (statsResponse.ok) {
+              const serverStats = await statsResponse.json();
+              sessionStartCount = serverStats.totalSent || 0;
+            }
+          } catch (e) {
+            console.log('⚠️ Не удалось получить начальную статистику');
+          }
+          
+          // Запускаем отправку с полученным анализом
+          const result = await agentServerAPI.autoApplyToJobs(
+            localSessionId,
+            aiAnalysis, // Используем только что полученный анализ
+            { 
+              maxJobs: maxJobs,
+              minMatchScore: 70,
+              headless: settings.headless ?? config?.settings?.headless ?? true
+            }
+          );
+
+          if (result.success) {
+            setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
+            toast.success(`✅ ${result.message}`);
+            await loadStatsFromServer();
+          } else {
+            if (result.message && result.message.includes('Выполните вход')) {
+              toast.error('❌ Сессия истекла. Войдите заново.');
+              setLoggedIn(false);
+              saveSessionId(null);
+              setLocalSessionId(null);
+            } else {
+              toast.error(`❌ Ошибка: ${result.message}`);
+            }
+          }
+          
+          setIsAutoApplying(false);
+          setAutoApplyProgress('');
+          return; // Завершаем выполнение
+        } else {
+          const errorData = await response.json().catch(() => ({ message: 'Неизвестная ошибка' }));
+          toast.error(`❌ Ошибка AI анализа: ${errorData.message || 'Не удалось проанализировать CV'}`);
+          return;
+        }
+      } catch (error) {
+        console.error('AI analysis error:', error);
+        toast.error(`❌ Ошибка AI анализа: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+        return;
+      }
     }
 
     setIsAutoApplying(true);

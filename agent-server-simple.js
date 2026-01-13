@@ -18,10 +18,13 @@ const execPromise = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Инициализация Groq AI
-const groq = new Groq({
-  apiKey: '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'
-});
+// Функция для создания экземпляра Groq с API ключом
+function createGroqClient(apiKey) {
+  if (!apiKey) {
+    throw new Error('Groq API ключ не указан');
+  }
+  return new Groq({ apiKey });
+}
 
 // Функция для правильного чтения PDF через pdf-parse
 async function readPdfText(pdfPath) {
@@ -89,7 +92,7 @@ async function readPdfText(pdfPath) {
 }
 
 // Функция для анализа CV с помощью Groq AI
-async function analyzeCVWithGroq(cvFilePath) {
+async function analyzeCVWithGroq(cvFilePath, apiKey) {
   console.log('🤖 НАЧИНАЕМ АНАЛИЗ CV С ПОМОЩЬЮ GROQ AI...');
   console.log(`📄 Файл CV: ${cvFilePath}`);
   
@@ -136,6 +139,11 @@ async function analyzeCVWithGroq(cvFilePath) {
     // ШАГ 3: АНАЛИЗ С ПОМОЩЬЮ GROQ AI
     console.log('🤖 Шаг 3: Отправка CV в Groq AI для ПОЛНОГО анализа...');
     
+    if (!apiKey) {
+      throw new Error('Groq API ключ не указан. Настройте API ключ в разделе AI → Настройки');
+    }
+    
+    const groq = createGroqClient(apiKey);
     const completion = await groq.chat.completions.create({
       messages: [
         {
@@ -599,7 +607,7 @@ class SimpleLucruAgent {
     }
   }
 
-  async uploadCVWithGroqController(cvFilePath, cvData) {
+  async uploadCVWithGroqController(cvFilePath, cvData, apiKey) {
     try {
       console.log('\n' + '='.repeat(70));
       console.log('🤖 ИНТЕЛЛЕКТУАЛЬНАЯ ЗАГРУЗКА CV С GROQ-КОНТРОЛЛЕРОМ');
@@ -632,6 +640,12 @@ class SimpleLucruAgent {
       
       // ШАГ 3: Спрашиваем Groq что видно и что делать
       console.log('🤖 ШАГ 3: Groq анализирует страницу и принимает решение...');
+      
+      if (!apiKey) {
+        throw new Error('Groq API ключ не указан');
+      }
+      const groq = createGroqClient(apiKey);
+      
       const step1Prompt = `Ты - ИИ контроллер агента загрузки CV. Проанализируй страницу.
 
 КОНТЕКСТ:
@@ -986,9 +1000,9 @@ ${finalText.substring(0, 3000)}
     }
   }
 
-  async uploadCV(cvFilePath, cvData) {
+  async uploadCV(cvFilePath, cvData, apiKey) {
     // Используем новый метод с Groq-контроллером
-    return await this.uploadCVWithGroqController(cvFilePath, cvData);
+    return await this.uploadCVWithGroqController(cvFilePath, cvData, apiKey);
   }
   
   async uploadCVOld(cvFilePath, cvData) {
@@ -2372,12 +2386,19 @@ app.post('/api/agent/upload-cv', upload.single('cv'), async (req, res) => {
 // AI анализ CV
 app.post('/api/agent/analyze-cv', async (req, res) => {
   try {
-    const { filePath } = req.body;
+    const { filePath, apiKey } = req.body;
     
     if (!filePath) {
       return res.status(400).json({
         success: false,
         message: 'Не указан путь к файлу CV'
+      });
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Не указан Groq API ключ. Настройте API ключ в разделе AI → Настройки'
       });
     }
 
@@ -2393,8 +2414,8 @@ app.post('/api/agent/analyze-cv', async (req, res) => {
     console.log('='.repeat(60));
     console.log(`📂 Файл: ${filePath}`);
 
-    // Используем функцию analyzeCVWithGroq
-    const cvData = await analyzeCVWithGroq(filePath);
+    // Используем функцию analyzeCVWithGroq с API ключом
+    const cvData = await analyzeCVWithGroq(filePath, apiKey);
 
     console.log('\n✅ AI АНАЛИЗ ЗАВЕРШЕН УСПЕШНО');
     console.log('='.repeat(60) + '\n');
@@ -2635,9 +2656,18 @@ app.post('/api/agent/sync-cv', async (req, res) => {
     console.log('\n🤖 ШАГ 2: АНАЛИЗ CV С ПОМОЩЬЮ GROQ AI...');
     console.log('⏳ Это может занять 10-30 секунд...');
     
+    // Получаем API ключ из запроса или переменной окружения
+    const apiKey = req.body.apiKey || process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Groq API ключ не указан. Укажите apiKey в запросе или установите переменную окружения GROQ_API_KEY'
+      });
+    }
+    
     let cvData;
     try {
-      cvData = await analyzeCVWithGroq(fullPath);
+      cvData = await analyzeCVWithGroq(fullPath, apiKey);
     } catch (analyzeError) {
       console.error('❌ Groq AI не смог проанализировать CV:', analyzeError.message);
       console.log('\n' + '='.repeat(60));
@@ -2652,7 +2682,7 @@ app.post('/api/agent/sync-cv', async (req, res) => {
     console.log('🤖 Groq будет управлять всем процессом загрузки');
     console.log('📋 Используем данные от Groq AI для заполнения формы');
     
-    const uploadSuccess = await agent.uploadCVWithGroqController(fullPath, cvData);
+    const uploadSuccess = await agent.uploadCVWithGroqController(fullPath, cvData, apiKey);
     
     if (uploadSuccess) {
       console.log('\n✅ CV УСПЕШНО ЗАГРУЖЕН НА САЙТ!');

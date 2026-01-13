@@ -55,7 +55,8 @@ export const useAgentScheduler = ({
   }, []);
 
   // Проверка, нужно ли выполнять задачу
-  const shouldRunTask = useCallback(() => {
+  // При ручном запуске (hasManualStartRef) игнорируем проверку времени
+  const shouldRunTask = useCallback((ignoreTimeCheck = false) => {
     if (status !== 'running' || isRunningRef.current) {
       return false;
     }
@@ -65,7 +66,8 @@ export const useAgentScheduler = ({
       return false;
     }
 
-    if (!canRunNow()) {
+    // При ручном запуске игнорируем проверку времени
+    if (!ignoreTimeCheck && !canRunNow()) {
       console.log('⏭️ Пропускаем запуск - задача выполнялась недавно');
       return false;
     }
@@ -74,9 +76,10 @@ export const useAgentScheduler = ({
   }, [status, sessionId, canRunNow]);
 
   // Выполнение задачи агента (используем ту же логику что и "Разовая отправка")
-  const runAgentTask = useCallback(async () => {
-    console.log('🔍 Планировщик: Проверяем shouldRunTask...');
-    if (!shouldRunTask()) {
+  const runAgentTask = useCallback(async (isManualStart = false) => {
+    console.log('🔍 Планировщик: Проверяем shouldRunTask (isManualStart:', isManualStart, ')...');
+    // При ручном запуске игнорируем проверку времени
+    if (!shouldRunTask(isManualStart)) {
       console.log('❌ Планировщик: shouldRunTask вернул false');
       return;
     }
@@ -175,6 +178,12 @@ export const useAgentScheduler = ({
       onLog(`❌ Критическая ошибка: ${errorMessage}`, 'error');
     } finally {
       isRunningRef.current = false;
+      // Сбрасываем флаг ручного запуска после выполнения задачи
+      // чтобы следующие автоматические запуски проверяли время
+      if (hasManualStartRef.current) {
+        hasManualStartRef.current = false;
+        console.log('🔄 Флаг ручного запуска сброшен');
+      }
       console.log('✅ Задача планировщика завершена');
     }
   }, [shouldRunTask, sessionId, settings.maxCVDaily, settings.headless, settings.intervalHours, onTaskComplete, onLog, saveRunTimestamp]);
@@ -201,23 +210,21 @@ export const useAgentScheduler = ({
       console.log(`✅ Планировщик настроен: следующий запуск через ${settings.intervalHours} час(ов)`);
       
       intervalRef.current = setInterval(() => {
-        runAgentTask();
+        runAgentTask(false); // false = автоматический запуск по расписанию
       }, intervalMs);
 
       // Запускаем первую задачу ТОЛЬКО если это ручной запуск
       if (runImmediately) {
-        // При ручном запуске (нажатие кнопки) флаг уже установлен в startAgent()
-        if (canRunNow()) {
-          console.log('🚀 Планировщик: Ручной запуск - выполняем первую задачу через 2 секунды...');
-          hasManualStartRef.current = true;
-          
-          setTimeout(() => {
-            console.log('🚀 Планировщик: Выполняем первую задачу (ручной запуск)...');
-            runAgentTask();
-          }, 2000);
-        } else {
-          console.log('⏭️ Планировщик: Пропускаем первую задачу - выполнялась недавно');
-        }
+        // При ручном запуске (нажатие кнопки) ИГНОРИРУЕМ проверку времени
+        // Пользователь явно хочет запустить задачу СРАЗУ
+        console.log('🚀 Планировщик: Ручной запуск - выполняем первую задачу через 2 секунды (игнорируем проверку времени)...');
+        hasManualStartRef.current = true;
+        
+        setTimeout(() => {
+          console.log('🚀 Планировщик: Выполняем первую задачу (ручной запуск)...');
+          // Принудительно запускаем задачу, игнорируя проверку canRunNow()
+          runAgentTask(true); // true = это ручной запуск
+        }, 2000);
       } else {
         console.log('⏭️ Планировщик: Только настройка интервала, без немедленного запуска (перезагрузка страницы)');
       }
@@ -234,6 +241,9 @@ export const useAgentScheduler = ({
     }
     isRunningRef.current = false;
     isInitializedRef.current = false; // Сбрасываем флаг инициализации
+    hasManualStartRef.current = false; // Сбрасываем флаг ручного запуска
+    // НЕ очищаем LAST_RUN_KEY - это позволит планировщику правильно работать
+    // при следующем запуске (проверка времени будет работать)
     console.log('🛑 Планировщик остановлен и сброшен');
   }, []);
 
