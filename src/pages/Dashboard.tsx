@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ArrowUp, ArrowDown, FileText, AlertCircle, Briefcase, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, Users, ExternalLink } from "lucide-react";
+import { ArrowUp, ArrowDown, FileText, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -112,22 +112,12 @@ export default function Dashboard() {
       bgGradient: "from-green-500/10 to-green-600/5 dark:from-green-500/20 dark:to-green-600/10",
       iconBg: "from-green-500 to-green-600",
     },
-    {
-      title: "Вакансий на сайте",
-      value: siteStats.find(s => s.site === 'lucru.md')?.totalVacancies.toString() || "0",
-      change: "+0%",
-      trend: "up" as const,
-      icon: Briefcase,
-      gradient: "from-purple-500 to-purple-600",
-      bgGradient: "from-purple-500/10 to-purple-600/5 dark:from-purple-500/20 dark:to-purple-600/10",
-      iconBg: "from-purple-500 to-purple-600",
-    },
   ];
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
         {kpiData.map((kpi) => (
           <Card
             key={kpi.title}
@@ -168,7 +158,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 md:gap-8 grid-cols-1">
         <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
           {/* Декоративные элементы */}
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full -translate-y-12 translate-x-12"></div>
@@ -211,46 +201,6 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
-          {/* Декоративные элементы */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-accent/10 to-primary/10 rounded-full -translate-y-12 translate-x-12"></div>
-          
-          <div className="relative p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 rounded-xl bg-accent shadow-lg">
-                <Users className="h-5 w-5 text-accent-foreground" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">Вакансии по сайтам</h3>
-            </div>
-            
-            <div className="space-y-4">
-              {siteStats.length > 0 ? (
-                siteStats.map((item) => (
-                  <div key={item.site} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground">{item.site}</span>
-                      <span className="text-sm font-bold text-accent">{item.totalVacancies}</span>
-                    </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200 shadow-inner">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500 shadow-lg"
-                        style={{ width: `${item.percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      Обработано: {item.percentage}%
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  <Users className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">Нет данных</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
       </div>
 
       {/* Recent Activity */}

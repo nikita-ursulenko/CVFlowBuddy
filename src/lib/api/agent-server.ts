@@ -201,6 +201,9 @@ export class AgentServerAPI {
     results?: any[];
   }> {
     try {
+      const aiSettings = JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}');
+      const { apiKey: savedApiKey, model, provider } = aiSettings?.config || {};
+
       const response = await fetch(`${this.config.baseUrl}/api/agent/auto-apply-jobs`, {
         method: 'POST',
         headers: {
@@ -213,7 +216,9 @@ export class AgentServerAPI {
           minMatchScore: options?.minMatchScore || 70,
           headless: options?.headless ?? true,
           isScheduled: options?.isScheduled ?? false,
-          apiKey: options?.apiKey,
+          apiKey: options?.apiKey || savedApiKey,
+          model,
+          provider,
           smtpConfig: options?.smtpConfig,
           emailMode: options?.emailMode || 'auto'
         }),
@@ -285,6 +290,9 @@ export class AgentServerAPI {
 
   async analyzeJob(jobDescription: string, cvData?: any): Promise<any> {
     try {
+      const aiSettings = JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}');
+      const { apiKey, model, provider } = aiSettings?.config || {};
+      
       const response = await fetch(`${this.config.baseUrl}/api/agent/analyze-cv-general`, {
         method: 'POST',
         headers: {
@@ -292,8 +300,9 @@ export class AgentServerAPI {
         },
         body: JSON.stringify({
           filePath: cvData?.filePath,
-          apiKey: localStorage.getItem('cvflow_ai_settings') ? 
-            JSON.parse(localStorage.getItem('cvflow_ai_settings')!).config.apiKey : ''
+          apiKey,
+          model,
+          provider
         }),
         signal: AbortSignal.timeout(this.config.timeout)
       });
@@ -330,6 +339,40 @@ export class AgentServerAPI {
     } catch (error) {
       console.error('Agent server sendEmail error:', error);
       return { success: false, message: 'Ошибка при отправке письма' };
+    }
+  }
+
+  async testAIConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      const aiSettings = JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}');
+      const { apiKey, model, provider } = aiSettings?.config || {};
+      
+      if (!apiKey) return { success: false, message: 'API ключ не настроен' };
+
+      const endpoint = provider === 'gemini' 
+        ? '/api/agent/gemini/test' 
+        : '/api/agent/groq-status/refresh';
+
+      const response = await fetch(`${this.config.baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey, model, provider }),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      const data = await response.json();
+      return {
+        success: data.success,
+        message: data.message || (data.success ? 'Успешно' : 'Ошибка проверки')
+      };
+    } catch (error) {
+      console.error('AI test error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Ошибка подключения к серверу'
+      };
     }
   }
 }

@@ -1,8 +1,9 @@
-export type AIProvider = 'openai' | 'groq';
+export type AIProvider = 'openai' | 'groq' | 'gemini';
 
 export interface AIConfig {
   provider: AIProvider;
   apiKey: string;
+  apiKeys?: Partial<Record<AIProvider, string>>;
   model: string;
   maxTokens?: number;
   temperature?: number;

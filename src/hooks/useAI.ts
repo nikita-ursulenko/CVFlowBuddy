@@ -227,10 +227,14 @@ export const useAI = (): AIState & AIActions => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return true;
+      const result = await agentServerAPI.testAIConnection();
+      if (!result.success) {
+        setState(prev => ({ ...prev, error: result.message }));
+      }
+      return result.success;
     } catch (error) {
-      setState(prev => ({ ...prev, error: 'Ошибка подключения' }));
+      const msg = error instanceof Error ? error.message : 'Ошибка подключения';
+      setState(prev => ({ ...prev, error: msg }));
       return false;
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));

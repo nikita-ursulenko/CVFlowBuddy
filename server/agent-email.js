@@ -1,4 +1,5 @@
-import { createGroqClient, readPdfText } from './utils.js';
+import { readPdfText } from './utils.js';
+import { callAI } from './ai.js';
 import { saveEmail, isDuplicateEmail, saveGroqStatus } from './storage.js';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -11,7 +12,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  *   3. Regex по всему тексту страницы
  *   4. Groq AI (если ключ передан и ничего не нашли)
  */
-export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
+export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, model = null, provider = 'groq') {
   console.log(`🔍 Поиск Email: ${jobUrl}`);
   const newPage = await browser.newPage();
   try {
@@ -63,31 +64,45 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
 
     // 4. Groq AI fallback
     if (!data.email && apiKey) {
-      console.log('🤖 DOM email не найден, спрашиваем Groq AI...');
+      console.log(`🤖 DOM email не найден, спрашиваем ${provider.toUpperCase()} AI...`);
       try {
-        const groq = createGroqClient(apiKey);
-        const aiResp = await groq.chat.completions.create({
+        const aiResp = await callAI({
+          provider,
+          apiKey,
+          model: model || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash'),
           messages: [{
             role: 'user',
             content: `Find the HR contact email address in the following job page text. Reply ONLY with the email address, nothing else. If there is no email, reply "none".\n\n${data.desc.substring(0, 2000)}`
           }],
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0,
-          max_tokens: 50
+          temperature: 0
         });
-        const aiEmail = aiResp.choices[0].message.content.trim().toLowerCase();
+
+        const aiEmail = aiResp.content.trim().toLowerCase();
         if (aiEmail !== 'none' && aiEmail.includes('@')) {
           data.email = aiEmail;
-          console.log(`🤖 Groq AI нашёл email: ${aiEmail}`);
+          console.log(`🤖 ${provider.toUpperCase()} AI нашёл email: ${aiEmail}`);
         } else {
-          console.log('🤖 Groq AI: email не найден');
+          console.log(`🤖 ${provider.toUpperCase()} AI: email не найден`);
+        }
+        
+        // Лимиты Groq
+        if (aiResp.headers) {
+          saveGroqStatus({
+            remainingTokens: aiResp.headers.get('x-ratelimit-remaining-tokens'),
+            limitTokens: aiResp.headers.get('x-ratelimit-limit-tokens'),
+            resetTokens: aiResp.headers.get('x-ratelimit-reset-tokens'),
+            remainingRequests: aiResp.headers.get('x-ratelimit-remaining-requests'),
+            limitRequests: aiResp.headers.get('x-ratelimit-limit-requests'),
+            resetRequests: aiResp.headers.get('x-ratelimit-reset-requests'),
+            pausedUntil: null
+          });
         }
       } catch (aiErr) {
-        if (aiErr.status === 429 || aiErr.message?.includes('429')) {
+        if (provider === 'groq' && (aiErr.status === 429 || aiErr.message?.includes('429'))) {
           console.error(`🛑 Groq API Limit: 429 Too Many Requests`);
           saveGroqStatus({ pausedUntil: Date.now() + 60000 });
         } else {
-          console.warn('⚠️ Groq AI ошибка при поиске email:', aiErr.message);
+          console.warn(`⚠️ ${provider.toUpperCase()} AI ошибка при поиске email:`, aiErr.message);
         }
       }
     }
@@ -101,7 +116,7 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
   }
 }
 
-export async function generateAndQueueEmail({ companyName, jobTitle, jobDescription, cvData, apiKey, targetEmail, emailMode = 'auto' }) {
+export async function generateAndQueueEmail({ companyName, jobTitle, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, emailMode = 'auto' }) {
   if (!apiKey) return false;
   
   if (isDuplicateEmail(targetEmail, companyName)) {
@@ -125,50 +140,29 @@ export async function generateAndQueueEmail({ companyName, jobTitle, jobDescript
 
   while (attempt < maxRetries) {
     try {
-      const groq = createGroqClient(apiKey);
-      const prompt = `Ты - профессиональный HR-консультант и копирайтер. 
-Твоя задача: написать короткое, впечатляющее и персонализированное сопроводительное письмо от имени кандидата.
-
-ИНФОРМАЦИЯ О КАНДИДАТЕ (из CV):
-Имя: ${cvData.firstName} ${cvData.lastName}
-Портфолио/Сайт: https://nikita-ursulenko.github.io/
-Контекст из CV: ${cvText ? cvText.substring(0, 4000) : 'Имя: ' + cvData.firstName + ' ' + cvData.lastName}
-
-ИНФОРМАЦИЯ О ВАКАНСИИ:
-Компания: ${companyName}
-Должность: ${jobTitle}
-Описание вакансии: ${jobDescription || 'Описание отсутствует, ориентируйся на название должности'}
-
-ТРЕБОВАНИЯ К ПИСЬМУ:
-1. Тон: Энергичный, проактивный, профессиональный.
-2. Объем: Коротко (2-3 небольших абзаца). HR ценят краткость.
-3. Содержание: На основе контекста CV выдели 1-2 навыка или проекта, которые идеально подходят под эту вакансию. 
-4. Обязательный призыв к действию: В конце письма ОБЯЗАТЕЛЬНО упомяни, что примеры работ и подробное портфолио доступны на моем сайте: https://nikita-ursulenko.github.io/
-5. Формат: Только текст письма. Без темы, без приветствий типа "Вот ваше письмо", без подписей "Сгенерировано нейросетью".
-
-Сгенерируй только финальный текст письма.`;
-
-      const response = await groq.chat.completions.create({
+      const aiResult = await callAI({
+        provider,
+        apiKey,
+        model: model || (provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash'),
         messages: [{ role: 'user', content: prompt }],
-        model: 'llama-3.3-70b-versatile',
         temperature: 0.7
-      }).asResponse();
-
-      const completion = await response.json();
-      const headers = response.headers;
-
-      // Сохраняем лимиты
-      saveGroqStatus({
-        remainingTokens: headers.get('x-ratelimit-remaining-tokens'),
-        limitTokens: headers.get('x-ratelimit-limit-tokens'),
-        resetTokens: headers.get('x-ratelimit-reset-tokens'),
-        remainingRequests: headers.get('x-ratelimit-remaining-requests'),
-        limitRequests: headers.get('x-ratelimit-limit-requests'),
-        resetRequests: headers.get('x-ratelimit-reset-requests'),
-        pausedUntil: null
       });
 
-      const emailBody = completion.choices[0].message.content.trim();
+      // Сохраняем лимиты если это Groq
+      if (aiResult.headers) {
+        const headers = aiResult.headers;
+        saveGroqStatus({
+          remainingTokens: headers.get('x-ratelimit-remaining-tokens'),
+          limitTokens: headers.get('x-ratelimit-limit-tokens'),
+          resetTokens: headers.get('x-ratelimit-reset-tokens'),
+          remainingRequests: headers.get('x-ratelimit-remaining-requests'),
+          limitRequests: headers.get('x-ratelimit-limit-requests'),
+          resetRequests: headers.get('x-ratelimit-reset-requests'),
+          pausedUntil: null
+        });
+      }
+
+      const emailBody = aiResult.content.trim();
       const subject = `Отклик на вакансию ${jobTitle} - ${cvData.firstName} ${cvData.lastName}`;
 
       saveEmail({

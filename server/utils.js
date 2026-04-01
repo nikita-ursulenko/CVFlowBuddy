@@ -3,6 +3,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -17,6 +18,16 @@ export function createGroqClient(apiKey) {
     throw new Error('Groq API ключ не указан');
   }
   return new Groq({ apiKey });
+}
+
+/**
+ * Функция для создания экземпляра Gemini с API ключом
+ */
+export function createGeminiClient(apiKey) {
+  if (!apiKey) {
+    throw new Error('Gemini API ключ не указан');
+  }
+  return new GoogleGenerativeAI(apiKey);
 }
 
 /**

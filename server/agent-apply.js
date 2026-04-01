@@ -90,7 +90,7 @@ async function hideVacancy(page, row, jobTitle, apiKey, findAndClickWithAI) {
  * отправляет CV на каждую вакансию.
  */
 export async function autoApplyToJobs(agent, cvData, options = {}) {
-  const { maxJobs = 10, apiKey, emailMode = 'auto' } = options;
+  const { maxJobs = 10, apiKey, model, provider = 'groq', emailMode = 'auto' } = options;
   const { page, browser, processedCompanies, isStopped } = agent;
 
   try {
@@ -180,7 +180,7 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       if (apiKey) {
         console.log(`🏢 "${companyKey}" | ${vacancyCount} вак. | Ищем HR email...`);
         const { email, jobDescription, companyName } = await extractEmailFromJobPage(
-          browser, `https://lucru.md${jobData.href}`, apiKey
+          browser, `https://lucru.md${jobData.href}`, apiKey, model, provider
         );
         const displayName = companyName || companyInfo?.displayName || companyKey;
         
@@ -193,6 +193,8 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
               jobDescription, 
               cvData, 
               apiKey, 
+              model,
+              provider,
               targetEmail: email, 
               emailMode 
             });

@@ -49,6 +49,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const [config, setConfig] = useState<AIConfig>({
     provider: 'groq',
     apiKey: '',
+    apiKeys: {},
     model: 'llama-3.3-70b-versatile',
     maxTokens: 2000,
     temperature: 0.7,
@@ -80,23 +81,37 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const refreshGroqStatus = async () => {
+  const refreshAIStatus = async () => {
     try {
       if (!config.apiKey) {
         toast.error("Сначала введите API ключ");
         return;
       }
       setIsRefreshingLimits(true);
-      const res = await fetch("http://localhost:5050/api/agent/groq-status/refresh", {
+      
+      const endpoint = config.provider === 'gemini' 
+        ? "http://localhost:5050/api/agent/gemini/test"
+        : "http://localhost:5050/api/agent/groq-status/refresh";
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: config.apiKey, model: config.model })
+        body: JSON.stringify({ 
+          apiKey: config.apiKey, 
+          model: config.model,
+          provider: config.provider 
+        })
       });
+      
       const data = await res.json();
       if (data.success) {
-        setGroqStatus(data);
-        toast.success("Лимиты Groq обновлены");
-      } else if (data.error) {
+        if (config.provider === 'groq') {
+          setGroqStatus(data);
+          toast.success("Лимиты Groq обновлены");
+        } else {
+          toast.success("Соединение с Gemini проверено успешно!");
+        }
+      } else if (data.error && config.provider === 'groq') {
         // Обработка ошибки лимита из Groq
         setGroqStatus({
           error: data.error.message,
@@ -130,7 +145,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   // Загружаем настройки при инициализации
   useEffect(() => {
     if (settings) {
-      setConfig(settings.config as AIConfig);
+      const savedConfig = settings.config as AIConfig;
+      // Миграция: если apiKeys нет, создаем его на основе текущего провайдера и ключа
+      const apiKeys = savedConfig.apiKeys || (savedConfig.apiKey ? { [savedConfig.provider]: savedConfig.apiKey } : {});
+      
+      setConfig({
+        ...savedConfig,
+        apiKeys
+      });
     }
   }, [settings]);
 
@@ -229,29 +251,42 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             <div className="space-y-2">
               <Label htmlFor="apiKey" className="flex items-center gap-2">
                 <Key className="h-4 w-4" />
-                {config.provider === 'groq' ? 'Groq API Key' : 'OpenAI API Key'}
+                {config.provider === 'groq' ? 'Groq API Key' : 
+                 config.provider === 'gemini' ? 'Google Gemini API Key' : 'OpenAI API Key'}
               </Label>
               <Input
                 id="apiKey"
                 type="password"
-                placeholder={config.provider === 'groq' ? 'gsk_...' : 'sk-...'}
+                placeholder={config.provider === 'groq' ? 'gsk_...' : 
+                             config.provider === 'gemini' ? 'AIza...' : 'sk-...'}
                 value={config.apiKey}
-                onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                onChange={(e) => {
+                  const newKey = e.target.value;
+                  setConfig(prev => ({ 
+                    ...prev, 
+                    apiKey: newKey,
+                    apiKeys: {
+                      ...(prev.apiKeys || {}),
+                      [prev.provider]: newKey
+                    }
+                  }));
+                }}
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Получите API ключ на{' '}
-                <a 
-                  href={config.provider === 'groq' 
-                    ? 'https://console.groq.com/keys' 
-                    : 'https://platform.openai.com/api-keys'
-                  } 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {config.provider === 'groq' ? 'console.groq.com' : 'platform.openai.com'}
-                </a>
+                {config.provider === 'groq' ? (
+                  <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    console.groq.com
+                  </a>
+                ) : config.provider === 'gemini' ? (
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    aistudio.google.com
+                  </a>
+                ) : (
+                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    platform.openai.com
+                  </a>
+                )}
               </p>
             </div>
 
@@ -260,10 +295,13 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               <Select 
                 value={config.provider} 
                 onValueChange={(value: AIProvider) => {
+                  const storedKey = config.apiKeys?.[value] || '';
                   setConfig(prev => ({
                     ...prev, 
                     provider: value,
-                    model: value === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4-turbo'
+                    apiKey: storedKey,
+                    model: value === 'groq' ? 'llama-3.3-70b-versatile' : 
+                           value === 'gemini' ? 'gemini-3-flash-preview' : 'gpt-4-turbo'
                   }));
                 }}
               >
@@ -281,6 +319,12 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                     <div className="flex items-center gap-2">
                       <Bot className="h-4 w-4 text-blue-500" />
                       OpenAI (Платный)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="gemini">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-orange-500" />
+                      Google Gemini (Бесплатно/Платный)
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -304,8 +348,11 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 </SelectTrigger>
                 <SelectContent>
                   {config.provider === 'groq' ? (
+                    <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Актуальная)</SelectItem>
+                  ) : config.provider === 'gemini' ? (
                     <>
-                      <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Актуальная)</SelectItem>
+                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                      <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (Preview)</SelectItem>
                     </>
                   ) : (
                     <>
@@ -319,6 +366,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               <p className="text-xs text-muted-foreground">
                 {config.provider === 'groq' 
                   ? 'Llama 3.3 70B Versatile - единственная актуальная модель'
+                  : config.provider === 'gemini'
+                  ? 'Gemini 3 Flash - флагманская скоростная модель 2026 года'
                   : 'GPT-4 Turbo дороже, но качественнее'
                 }
               </p>
@@ -401,17 +450,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                Лимиты Groq API
+                {(config.provider as string) === 'gemini' ? 'Статус Google Gemini' : 
+                 (config.provider as string) === 'groq' ? 'Лимиты Groq API' : 'Лимиты AI API'}
               </h4>
               <Button 
                 variant="ghost" 
                 size="sm" 
                 className="h-8 gap-2" 
-                onClick={refreshGroqStatus}
+                onClick={refreshAIStatus}
                 disabled={isRefreshingLimits || !config.apiKey}
               >
                 <RefreshCw className={`h-3 w-3 ${isRefreshingLimits ? 'animate-spin' : ''}`} />
-                Проверить лимиты
+                {(config.provider as string) === 'gemini' ? 'Проверить соединение' : 'Проверить лимиты'}
               </Button>
             </div>
             
