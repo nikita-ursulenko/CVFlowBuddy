@@ -118,3 +118,15 @@ export function saveEmail(emailData) {
   }
   writeJson(PATHS.emails, emails.slice(0, 200));
 }
+export function isDuplicateEmail(targetEmail, company) {
+  const emails = getEmails();
+  const normalizedEmail = targetEmail?.toLowerCase().trim();
+  const normalizedCompany = company?.toLowerCase().trim();
+  
+  return emails.some(e => {
+    const eEmail = e.email?.toLowerCase().trim();
+    const eCompany = e.company?.toLowerCase().trim();
+    return (normalizedEmail && eEmail === normalizedEmail) || 
+           (normalizedCompany && eCompany === normalizedCompany);
+  });
+}

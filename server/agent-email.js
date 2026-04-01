@@ -4,7 +4,7 @@
  */
 
 import { createGroqClient } from './utils.js';
-import { saveEmail } from './storage.js';
+import { saveEmail, isDuplicateEmail } from './storage.js';
 
 /**
  * Извлекает email HR-а со страницы вакансии.
@@ -105,6 +105,11 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
  */
 export async function generateAndQueueEmail({ companyName, jobTitle, jobDescription, cvData, apiKey, targetEmail, emailMode = 'auto' }) {
   if (!apiKey) return false;
+  
+  if (isDuplicateEmail(targetEmail, companyName)) {
+    console.log(`⏩ Пропуск: Письмо для ${companyName} (${targetEmail}) уже существует в базе.`);
+    return true; // Считаем "успехом" для логики цикла
+  }
   try {
     const groq = createGroqClient(apiKey);
     const prompt = `Ты - HR-консультант. Напиши короткое энергичное сопроводительное письмо для отклика.
