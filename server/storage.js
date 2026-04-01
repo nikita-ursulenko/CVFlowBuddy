@@ -131,7 +131,7 @@ export function isDuplicateEmail(targetEmail, company) {
   });
 }
 
-export function getGroqStatus() {
+export function getAIStatus() {
   return readJson(PATHS.groqStatus, {
     remainingTokens: null,
     limitTokens: null,
@@ -144,8 +144,8 @@ export function getGroqStatus() {
   });
 }
 
-export function saveGroqStatus(data) {
-  const current = getGroqStatus();
+export function saveAIStatus(data) {
+  const current = getAIStatus();
   writeJson(PATHS.groqStatus, { 
     ...current, 
     ...data, 
@@ -153,7 +153,7 @@ export function saveGroqStatus(data) {
   });
 }
 
-export function saveGroqStatusFromHeaders(headers) {
+export function saveAIStatusFromHeaders(headers) {
   const data = {
     remainingTokens: headers.get('x-ratelimit-remaining-tokens'),
     limitTokens: headers.get('x-ratelimit-limit-tokens'),
@@ -162,5 +162,10 @@ export function saveGroqStatusFromHeaders(headers) {
     limitRequests: headers.get('x-ratelimit-limit-requests'),
     resetRequests: headers.get('x-ratelimit-reset-requests'),
   };
-  saveGroqStatus(data);
+  saveAIStatus(data);
 }
+
+// Алиасы для обратной совместимости
+export const getGroqStatus = getAIStatus;
+export const saveGroqStatus = saveAIStatus;
+export const saveGroqStatusFromHeaders = saveAIStatusFromHeaders;

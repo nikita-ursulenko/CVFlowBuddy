@@ -1,6 +1,6 @@
 import { readPdfText } from './utils.js';
 import { callAI } from './ai.js';
-import { saveEmail, isDuplicateEmail, saveGroqStatus } from './storage.js';
+import { saveEmail, isDuplicateEmail, saveGroqStatus, getAIStatus, saveAIStatus } from './storage.js';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -36,15 +36,15 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
           el.textContent.match(/E[-\s]?mail\s*:/i)
         );
         for (const block of blocks) {
-          const m = block.textContent.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-          if (m && isValid(m[0])) { email = m[0]; break; }
+          const m = block.textContent.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
+          if (m && isValid(m[0])) { email = m[0].trim(); break; }
         }
       }
 
       // 3. regex по всей странице
       if (!email) {
-        const matches = document.body.innerText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-        email = matches.find(isValid) || null;
+        const matches = document.body.innerText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g) || [];
+        email = matches.find(isValid)?.trim() || null;
       }
 
       const companyEl = document.querySelector(
@@ -62,8 +62,15 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
       return { email, desc, companyName };
     });
 
-    // 4. Groq AI fallback
+    // 4. AI fallback
     if (!data.email && apiKey) {
+      const status = getAIStatus();
+      if (status.pausedUntil && Date.now() < status.pausedUntil) {
+        const remaining = Math.round((status.pausedUntil - Date.now()) / 1000);
+        console.log(`⏳ ИИ на паузе (лимиты). Ждем еще ${remaining}с. Пропускаем экстракцию.`);
+        return { email: null, jobDescription: data.desc, companyName: data.companyName };
+      }
+
       console.log(`🤖 DOM email не найден, спрашиваем ${provider.toUpperCase()} AI...`);
       try {
         const aiResp = await callAI({
@@ -103,6 +110,9 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
           saveGroqStatus({ pausedUntil: Date.now() + 60000 });
         } else {
           console.warn(`⚠️ ${provider.toUpperCase()} AI ошибка при поиске email:`, aiErr.message);
+          if (aiErr.status === 429 || aiErr.message?.includes('429')) {
+             saveAIStatus({ pausedUntil: Date.now() + 60000 });
+          }
         }
       }
     }
@@ -149,7 +159,6 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
     1. The letter should be in Russian, written from the first person. 
     2. It should be professional yet concise. 
     3. If multiple Job Titles are provided, mention that you are interested in several positions.
-    4. MANDATORY: The signature must include your personal website: https://nikita-ursulenko.github.io/
     5. DO NOT include subject line, ONLY the body text.
     6. Maximum length: 180 words.`;
 
@@ -177,15 +186,20 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
         });
       }
 
-      const emailBody = aiResult.content.trim();
-      const subject = `Отклик на вакансию ${jobTitle} - ${cvData.firstName} ${cvData.lastName}`;
+      let content = aiResult.content.trim();
+      const mandatorySign = "\n\nhttps://nikita-ursulenko.github.io/";
+      if (!content.includes("nikita-ursulenko.github.io")) {
+        content += mandatorySign;
+      }
+      
+      const subject = `Apply: ${titles}`;
 
       saveEmail({
         email: targetEmail,
         company: companyName,
-        jobTitle,
+        jobTitle: titles,
         subject,
-        content: emailBody,
+        content: content,
         cvPath: cvData.serverFilePath || cvData.filePath,
         mode: emailMode,
         status: 'pending'
@@ -196,10 +210,15 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
 
     } catch (error) {
       attempt++;
-      if (error.status === 429 || error.message?.includes('rate_limit')) {
-        const waitTime = attempt * 10000; // 10s, 20s...
-        console.warn(`⏳ Лимит API Groq (429). Попытка ${attempt}/${maxRetries}. Ждем ${waitTime/1000}сек...`);
-        await sleep(waitTime);
+      if (error.status === 429 || error.message?.includes('429') || error.message?.includes('rate_limit')) {
+        if (attempt >= maxRetries) {
+          console.error(`🛑 Достигнут лимит API ${provider.toUpperCase()} после ${maxRetries} попыток. Пауза 10 минут.`);
+          saveAIStatus({ pausedUntil: Date.now() + 10 * 60000 });
+          return false;
+        }
+        const waitTime = attempt * 10000; 
+        console.warn(`⏳ Лимит API ${provider.toUpperCase()} (429). Попытка ${attempt}/${maxRetries}. Ждем ${waitTime/1000}сек...`);
+        await new Promise(r => setTimeout(r, waitTime));
       } else {
         console.error('❌ Ошибка генерации письма:', error.message);
         return false;

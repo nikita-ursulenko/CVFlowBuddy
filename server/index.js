@@ -14,7 +14,8 @@ import {
   saveSiteStat, 
   getEmails, 
   saveEmail,
-  getGroqStatus 
+  getAIStatus,
+  getAIStatus
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -317,7 +318,7 @@ app.post('/api/agent/analyze-cv-general', async (req, res) => {
 // Stats routes
 app.get('/api/stats', (req, res) => res.json(getStats()));
 app.get('/api/agent/groq-status', (req, res) => {
-  res.json({ success: true, ...getGroqStatus() });
+  res.json({ success: true, ...getAIStatus() });
 });
 
 app.post('/api/agent/groq-status/refresh', async (req, res) => {
@@ -338,7 +339,7 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
     }).withResponse();
 
     saveGroqStatusFromHeaders(response.headers);
-    res.json({ success: true, ...getGroqStatus() });
+    res.json({ success: true, ...getAIStatus() });
   } catch (error) {
     console.error('Groq refresh error:', error);
     
@@ -357,10 +358,10 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
         success: false, 
         error: error.error,
         message: error.message,
-        ...getGroqStatus() // Добавляем текущие лимиты даже при ошибке
+        ...getAIStatus() // Добавляем текущие лимиты даже при ошибке
       });
     }
-    res.status(500).json({ success: false, message: error.message, ...getGroqStatus() });
+    res.status(500).json({ success: false, message: error.message, ...getAIStatus() });
   }
 });
 app.post('/api/agent/gemini/test', async (req, res) => {

@@ -5,7 +5,7 @@
  */
 
 import { extractEmailFromJobPage, generateAndQueueEmail } from './agent-email.js';
-import { saveSuccessStat, saveTotalCategoryJobs, getGroqStatus, saveErrorStat } from './storage.js';
+import { saveSuccessStat, saveTotalCategoryJobs, getAIStatus, saveErrorStat } from './storage.js';
 
 /**
  * Вспомогательная функция: найти строку вакансии по ссылке 
@@ -121,6 +121,15 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       if (appliedCount >= maxJobs) break;
 
       const info = companyMap[companyKey];
+      
+      // Проверка глобальной паузы ИИ
+      const aiStatus = getAIStatus();
+      if (aiStatus.pausedUntil && Date.now() < aiStatus.pausedUntil) {
+        const waitMin = Math.ceil((aiStatus.pausedUntil - Date.now()) / 60000);
+        console.log(`\n🛑 ИИ всё ещё на паузе из-за лимитов (осталось ~${waitMin} мин). Пропускаем компанию ${info.displayName}...`);
+        continue;
+      }
+
       console.log(`\n📦 Компания: ${info.displayName} (${info.vacancies.length} вак.)`);
 
       if (agent.processedCompanies.has(companyKey)) {
