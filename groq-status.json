@@ -1,10 +1,10 @@
 {
-  "remainingTokens": "11963",
+  "remainingTokens": "11135",
   "limitTokens": "12000",
-  "resetTokens": "185ms",
-  "remainingRequests": "998",
+  "resetTokens": "4.325s",
+  "remainingRequests": "989",
   "limitRequests": "1000",
-  "resetRequests": "2m52.8s",
+  "resetRequests": "15m50.4s",
   "pausedUntil": null,
-  "updatedAt": "2026-04-01T23:00:39.041Z"
+  "updatedAt": "2026-04-01T23:11:00.892Z"
 }

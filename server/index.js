@@ -14,7 +14,6 @@ import {
   saveSiteStat, 
   getEmails, 
   saveEmail,
-  getAIStatus,
   getAIStatus
 } from './storage.js';
 

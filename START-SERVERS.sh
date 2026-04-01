@@ -46,11 +46,11 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Запускаем Backend сервер
-echo "🚀 Запуск Backend сервера (порт 5050)..."
-node server/index.js > server.log 2>&1 &
+# Запускаем Backend сервер (Agent Server)
+echo "🚀 Запуск Agent Server (npm run agent:server)..."
+npm run agent:server > server.log 2>&1 &
 echo $! > "$BACKEND_PID_FILE"
-echo "   Backend запущен (PID: $(cat $BACKEND_PID_FILE))"
+echo "   Agent Server запущен (PID: $(cat $BACKEND_PID_FILE))"
 
 # Запускаем Frontend сервер
 echo "🚀 Запуск Frontend сервера (порт 8000)..."
