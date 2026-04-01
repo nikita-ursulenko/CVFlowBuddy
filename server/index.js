@@ -143,9 +143,10 @@ app.post('/api/agent/close', async (req, res) => {
     const { sessionId } = req.body;
     const agent = activeAgents.get(sessionId);
     if (agent) {
-      await agent.cleanup();
+      if (typeof agent.stop === 'function') agent.stop(); // Остановка цикла
+      await agent.cleanup(); // Закрытие браузера
       activeAgents.delete(sessionId);
-      console.log(`🛑 Агент ${sessionId} закрыт вручную`);
+      console.log(`🛑 Агент ${sessionId} остановлен и закрыт вручную`);
       return res.json({ success: true, message: 'Браузер агента закрыт' });
     }
     res.status(404).json({ success: false, message: 'Сессия не признана активной' });
@@ -222,7 +223,7 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     if (!isBrowserActive(agent)) await agent.initialize();
 
     // Start in background
-    agent.autoApplyToITJobs(cvData, { maxJobs, apiKey, smtpConfig, emailMode })
+    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, smtpConfig, emailMode })
       .then(async result => {
         console.log(`✅ Auto-apply ${sessionId} done`);
         // Автоматически закрываем браузер после завершения отправок

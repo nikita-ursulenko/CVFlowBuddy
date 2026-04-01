@@ -94,6 +94,12 @@ export function saveSiteStat({ site, totalVacancies }) {
   writeJson(PATHS.stats, stats);
 }
 
+export function saveTotalCategoryJobs(totalCount) {
+  const stats = getStats();
+  stats.totalCategoryJobs = totalCount;
+  writeJson(PATHS.stats, stats);
+}
+
 export function getEmails() {
   return readJson(PATHS.emails, []);
 }

@@ -43,7 +43,7 @@ fi
 
 # Запускаем Backend сервер
 echo "🚀 Запуск Backend сервера (порт 5050)..."
-node agent-server-simple.js &
+node server/index.js &
 BACKEND_PID=$!
 echo "   Backend PID: $BACKEND_PID"
 sleep 2

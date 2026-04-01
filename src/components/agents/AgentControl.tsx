@@ -15,6 +15,7 @@ import { LoginDialog } from './LoginDialog';
 import { AgentSettingsDialog } from './AgentSettings';
 import { useSettings } from '@/hooks/useSettings';
 import { useAI } from '@/hooks/useAI';
+import { useAgentAutoApply } from '@/hooks/useAgentAutoApply';
 
 interface AgentStatus {
   isRunning: boolean;
@@ -67,10 +68,9 @@ export const AgentControl: React.FC<AgentControlProps> = ({
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   const [localCvExistsOnSite, setLocalCvExistsOnSite] = useState<boolean | null>(null);
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
-  const [isAutoApplying, setIsAutoApplying] = useState(false);
-  const [autoApplyProgress, setAutoApplyProgress] = useState('');
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+  const [totalCategoryJobs, setTotalCategoryJobs] = useState<number>(0);
 
   // Планировщик задач - теперь работает автоматически через useEffect
   useAgentScheduler({
@@ -108,6 +108,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
         
         const totalSent = serverStats.totalSent || 0;
         const totalErrors = serverStats.totalErrors || 0;
+        if (serverStats.totalCategoryJobs) setTotalCategoryJobs(serverStats.totalCategoryJobs);
         
         updateStats({
           totalSent: totalSent,
@@ -293,303 +294,18 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     }
   };
 
-  // Запуск автоматической отправки на вакансии с мониторингом прогресса
-  const handleAutoApply = async (manualMaxJobs?: number) => {
-    console.log('🚀 handleAutoApply вызван');
-    console.log('   isLoggedIn:', isLoggedIn);
-    console.log('   localSessionId:', localSessionId);
-    console.log('   cvFile:', cvFile);
-    console.log('   cvFile.aiAnalysis:', cvFile?.aiAnalysis);
-    
-    if (!isLoggedIn || !localSessionId) {
-      toast.error('Сначала войдите в аккаунт');
-      return;
-    }
-
-    if (!cvFile) {
-      toast.error('Сначала загрузите CV файл в разделе CV');
-      return;
-    }
-
-    // Если CV загружен, но нет AI анализа - запускаем анализ автоматически
-    if (!cvFile.aiAnalysis) {
-      if (!cvFile.filePath) {
-        toast.error('CV файл загружен, но путь к файлу не найден. Перезагрузите CV файл.');
-        return;
-      }
-
-      toast.info('🤖 CV загружен, но нет AI анализа. Запускаем анализ автоматически...');
-      
-      // Получаем API ключ из настроек AI
-      const aiSettings = localStorage.getItem('cvflow_ai_settings');
-      let apiKey = '';
-      if (aiSettings) {
-        try {
-          const settings = JSON.parse(aiSettings);
-          apiKey = settings.config?.apiKey || '';
-        } catch (e) {
-          console.error('Ошибка чтения настроек AI:', e);
-        }
-      }
-      
-      if (!apiKey) {
-        toast.error('❌ Groq API ключ не настроен. Перейдите в раздел AI → Настройки и укажите API ключ');
-        return;
-      }
-      
-      try {
-        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
-        const response = await fetch(`${baseUrl}/api/agent/analyze-cv`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filePath: cvFile.filePath,
-            apiKey: apiKey
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Сохраняем результаты AI анализа через хук
-          saveAIAnalysis(data.analysis);
-          
-          toast.success('✅ AI анализ завершен! Продолжаем отправку...');
-          
-          // Используем анализ напрямую для отправки (не дожидаясь обновления состояния)
-          // Продолжаем выполнение функции ниже, используя data.analysis
-          const aiAnalysis = data.analysis;
-          
-          // Переходим к отправке, используя полученный анализ
-          setIsAutoApplying(true);
-          setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
-
-          const maxJobs = manualMaxJobs || settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
-          console.log('📊 Разовая отправка: maxJobs =', maxJobs);
-          
-          // Запоминаем начальное количество для отслеживания прогресса
-          const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
-          let sessionStartCount = 0;
-          try {
-            const statsResponse = await fetch(`${baseUrl}/api/stats`);
-            if (statsResponse.ok) {
-              const serverStats = await statsResponse.json();
-              sessionStartCount = serverStats.totalSent || 0;
-            }
-          } catch (e) {
-            console.log('⚠️ Не удалось получить начальную статистику');
-          }
-          
-          // Запускаем отправку с полученным анализом
-          const result = await agentServerAPI.autoApplyToJobs(
-            localSessionId,
-            aiAnalysis, // Используем только что полученный анализ
-            { 
-              maxJobs: maxJobs,
-              minMatchScore: 70,
-              headless: settings.headless ?? config?.settings?.headless ?? true,
-              apiKey: aiSystemSettings?.config?.apiKey,
-              smtpConfig: generalSettings.smtp,
-              emailMode: generalSettings.emailMode || 'auto'
-            }
-          );
-
-          if (result.success) {
-            if (result.appliedCount !== undefined) {
-              setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
-            } else {
-              setAutoApplyProgress('Задача запущена в фоновом режиме...');
-              // В этом случае мониторинг прогресса продолжится через progressMonitor (если он запущен)
-              // Но в этом блоке (if !aiAnalysis) progressMonitor НЕ был запущен. 
-              // Добавим простейший мониторинг для этого случая или просто уведомление.
-            }
-            toast.success(`✅ ${result.message || 'Задача запущена'}`);
-            await loadStatsFromServer();
-          } else {
-            if (result.message && result.message.includes('Выполните вход')) {
-              toast.error('❌ Сессия истекла. Войдите заново.');
-              setLoggedIn(false);
-              saveSessionId(null);
-              setLocalSessionId(null);
-            } else {
-              toast.error(`❌ Ошибка: ${result.message}`);
-            }
-          }
-          
-          setIsAutoApplying(false);
-          setAutoApplyProgress('');
-          return; // Завершаем выполнение
-        } else {
-          const errorData = await response.json().catch(() => ({ message: 'Неизвестная ошибка' }));
-          toast.error(`❌ Ошибка AI анализа: ${errorData.message || 'Не удалось проанализировать CV'}`);
-          return;
-        }
-      } catch (error) {
-        console.error('AI analysis error:', error);
-        toast.error(`❌ Ошибка AI анализа: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
-        return;
-      }
-    }
-
-    setIsAutoApplying(true);
-    setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
-
-    const maxJobs = manualMaxJobs || settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
-    console.log('📊 Разовая отправка: maxJobs =', maxJobs, '(из settings.maxCVDaily =', settings.maxCVDaily, ')');
-    
-    // Запоминаем начальное количество для отслеживания прогресса ЭТОЙ сессии
-    const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
-    let sessionStartCount = 0;
-    try {
-      const statsResponse = await fetch(`${baseUrl}/api/stats`);
-      if (statsResponse.ok) {
-        const serverStats = await statsResponse.json();
-        sessionStartCount = serverStats.totalSent || 0;
-        console.log(`📊 Начальное количество отправленных CV: ${sessionStartCount}`);
-      }
-    } catch (e) {
-      console.log('⚠️ Не удалось получить начальную статистику');
-    }
-    
-    let lastProgress = 0;
-    let noProgressCount = 0;
-    let isCompleted = false;
-    
-    // Интервал мониторинга прогресса (каждые 5 секунд для реального времени)
-    const progressMonitor = setInterval(async () => {
-      if (isCompleted) {
-        clearInterval(progressMonitor);
-        return;
-      }
-
-      try {
-        // Получаем статистику с сервера
-        const baseUrl = `${window.location.protocol}//${window.location.hostname}:5050`;
-        const response = await fetch(`${baseUrl}/api/stats`);
-        
-        if (response.ok) {
-          const serverStats = await response.json();
-          const totalSent = serverStats.totalSent || 0;
-          const recentActivity = serverStats.recentActivity || [];
-          
-          // Вычисляем прогресс ТЕКУЩЕЙ сессии (а не общий)
-          const currentSessionProgress = totalSent - sessionStartCount;
-          
-          // Обновляем UI с прогрессом текущей сессии
-          const displayProgress = Math.min(currentSessionProgress, maxJobs);
-          setAutoApplyProgress(`Отправка CV: ${displayProgress} / ${maxJobs}`);
-          console.log(`📊 Мониторинг: ${displayProgress} / ${maxJobs} (total: ${totalSent}, start: ${sessionStartCount})`);
-          
-          // Проверяем есть ли свежая активность (за последние 30 секунд)
-          const hasRecentActivity = recentActivity.some((activity: any) => {
-            if (!activity.timestamp) return false;
-            const activityTime = new Date(activity.timestamp).getTime();
-            const now = Date.now();
-            return (now - activityTime) < 30000; // 30 секунд
-          });
-          
-          if (currentSessionProgress === lastProgress && !hasRecentActivity) {
-            noProgressCount++;
-            console.log(`⚠️ Нет прогресса отправки: ${noProgressCount} раз подряд (${noProgressCount * 5} сек)`);
-            
-            // Если 24 раза подряд нет прогресса (2 минуты = 24 × 5 сек) - перезапускаем агента
-            if (noProgressCount >= 24) {
-              console.log('🔄 Обнаружено зависание (2 минуты без прогресса). Перезапуск агента...');
-              setAutoApplyProgress('Агент завис. Перезапуск...');
-              toast.warning('⚠️ Агент завис (2 мин без прогресса). Выполняется перезапуск...');
-              
-              // Закрываем старую сессию агента
-              try {
-                await agentServerAPI.closeAgent(localSessionId);
-              } catch (e) {
-                console.log('Ошибка закрытия агента:', e);
-              }
-              
-              // Небольшая пауза
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              
-              // Сбрасываем счетчик
-              noProgressCount = 0;
-              lastProgress = currentSessionProgress;
-              
-              toast.info('🔄 Агент перезапущен. Продолжаем отправку...');
-            }
-          } else {
-            // Есть прогресс - сбрасываем счетчик
-            if (currentSessionProgress > lastProgress) {
-              lastProgress = currentSessionProgress;
-              noProgressCount = 0;
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Ошибка мониторинга прогресса:', error);
-      }
-    }, 5000); // Каждые 5 секунд для плавного обновления UI
-
-    try {
-      toast.info(`🤖 Запуск автоотправки на ${maxJobs} вакансий...`);
-      setAutoApplyProgress(`Отправка CV: 0 / ${maxJobs}`);
-      
-      const result = await agentServerAPI.autoApplyToJobs(
-        localSessionId,
-        cvFile.aiAnalysis,
-        { 
-          maxJobs: maxJobs,
-          minMatchScore: 70,
-          headless: settings.headless ?? config?.settings?.headless ?? true,
-          apiKey: aiSystemSettings?.config?.apiKey,
-          smtpConfig: generalSettings.smtp,
-          emailMode: generalSettings.emailMode || 'auto'
-        }
-      );
-
-      if (result.success) {
-        if (result.appliedCount !== undefined) {
-          isCompleted = true;
-          clearInterval(progressMonitor);
-          setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
-        } else {
-          // Если вернулся ответ о фоновом запуске - не сбрасываем прогресс, а ждем monitor
-          setAutoApplyProgress('Задача выполняется в фоне...');
-          // Мы НЕ останавливаем интервал, чтобы прогресс продолжал поллиться
-          return; 
-        }
-        toast.success(`✅ ${result.message}`);
-        
-        // Обновляем статистику
-        await loadStatsFromServer();
-        
-        // Показываем детали
-        if (result.results && result.results.length > 0) {
-          const applied = result.results.filter((r: any) => r.status === 'applied');
-          console.log('📊 Результаты автоотправки:', applied);
-        }
-      } else {
-        // Проверяем нужна ли авторизация
-        if (result.message && result.message.includes('Выполните вход')) {
-          toast.error('❌ Сессия истекла. Войдите заново.');
-          setLoggedIn(false);
-          saveSessionId(null);
-          setLocalSessionId(null);
-        } else {
-          throw new Error(result.message);
-        }
-      }
-
-    } catch (error) {
-      isCompleted = true;
-      clearInterval(progressMonitor);
-      console.error('Auto-apply error:', error);
-      toast.error(`❌ Ошибка автоотправки: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
-      setAutoApplyProgress('');
-    } finally {
-      setTimeout(() => {
-        setIsAutoApplying(false);
-        setAutoApplyProgress('');
-      }, 5000);
-    }
-  };
+  const { isAutoApplying, autoApplyProgress, handleAutoApply } = useAgentAutoApply({
+    sessionId: localSessionId,
+    cvFile,
+    settings,
+    config,
+    generalSettings,
+    aiSystemSettings,
+    setLoggedIn,
+    saveSessionId,
+    saveAIAnalysis,
+    loadStatsFromServer
+  });
 
   const handleCloseBrowser = async () => {
     if (!localSessionId) return;
@@ -847,7 +563,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                         stopAgent();
                         localStorage.removeItem('agent_run_start_count'); // Очищаем начальное значение
                         updateStats({ todaySent: 0 }); // Сбрасываем прогресс
-                        toast.info('Агент остановлен');
+                        toast.info('Агент остановлен, закрываем браузер...');
+                        handleCloseBrowser();
                       }}
                       variant="outline"
                       className="flex-1 h-12 border-red-400 text-red-600 hover:bg-red-50"
@@ -873,7 +590,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                         stopAgent();
                         localStorage.removeItem('agent_run_start_count'); // Очищаем начальное значение
                         updateStats({ todaySent: 0 }); // Сбрасываем прогресс
-                        toast.info('Агент остановлен');
+                        toast.info('Агент остановлен, закрываем браузер...');
+                        handleCloseBrowser();
                       }}
                       variant="outline"
                       className="flex-1 h-12 border-red-400 text-red-600 hover:bg-red-50"
@@ -967,9 +685,16 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                   <Activity className="h-4 w-4 text-green-600 animate-pulse" />
                   <span className="text-sm font-semibold text-gray-700">Прогресс за текущую сессию</span>
                 </div>
-                <Badge variant="outline" className="text-green-600 border-green-400">
-                  {stats.todaySent} / {settings.maxCVDaily} CV
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {totalCategoryJobs > 0 && (
+                    <Badge variant="secondary" className="text-blue-700 bg-blue-100 border-blue-300 text-xs">
+                      📊 {totalCategoryJobs} вакансий в категории
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="text-green-600 border-green-400">
+                    {stats.todaySent} / {settings.maxCVDaily} CV
+                  </Badge>
+                </div>
               </div>
               
               <div className="space-y-2">
