@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Скрипт для запуска серверов CVFlow Buddy
+# Скрипт для запуска серверов CVFlow Buddy с логикой перезапуска
 # Использование: bash START-SERVERS.sh
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║          Запуск серверов CVFlow Buddy                        ║"
+echo "║          Перезапуск серверов CVFlow Buddy                    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -12,62 +12,55 @@ echo ""
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Получаем IP-адрес
-IP_ADDR=$(hostname -I | awk '{print $1}')
+BACKEND_PID_FILE=".backend.pid"
+FRONTEND_PID_FILE=".frontend.pid"
 
-echo "📍 IP-адрес: $IP_ADDR"
-echo ""
+# Функция для остановки процесса
+stop_process() {
+    local pid_file=$1
+    local name=$2
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        if ps -p $pid > /dev/null; then
+            echo "🛑 Остановка $name (PID: $pid)..."
+            kill $pid 2>/dev/null || kill -9 $pid 2>/dev/null
+        fi
+        rm "$pid_file"
+    fi
+    # На всякий случай убиваем по имени, если PID не совпал
+    if [ "$name" == "Backend" ]; then
+        pkill -f "node server/index.js" 2>/dev/null
+    else
+        pkill -f "vite" 2>/dev/null
+    fi
+}
 
-# Проверяем установлен ли Node.js
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js не установлен!"
-    exit 1
-fi
+echo "🧹 Очистка старых процессов..."
+stop_process "$BACKEND_PID_FILE" "Backend"
+stop_process "$FRONTEND_PID_FILE" "Frontend"
+sleep 1
 
-NODE_VERSION=$(node --version)
-echo "✅ Node.js: $NODE_VERSION"
-echo ""
-
-# Проверяем установлены ли зависимости
+# Проверяем зависимости
 if [ ! -d "node_modules" ]; then
     echo "📦 Установка зависимостей..."
     npm install
-    echo ""
-fi
-
-# Проверяем установлены ли Playwright браузеры
-if [ ! -d "$HOME/.cache/ms-playwright/chromium-1194" ]; then
-    echo "🌐 Установка Playwright браузеров..."
-    npx playwright install
-    echo ""
 fi
 
 # Запускаем Backend сервер
 echo "🚀 Запуск Backend сервера (порт 5050)..."
-node server/index.js &
-BACKEND_PID=$!
-echo "   Backend PID: $BACKEND_PID"
-sleep 2
+node server/index.js > server.log 2>&1 &
+echo $! > "$BACKEND_PID_FILE"
+echo "   Backend запущен (PID: $(cat $BACKEND_PID_FILE))"
 
 # Запускаем Frontend сервер
-echo "🚀 Запуск Frontend сервера (порт 5004)..."
-npm run dev &
-FRONTEND_PID=$!
-echo "   Frontend PID: $FRONTEND_PID"
-sleep 5
+echo "🚀 Запуск Frontend сервера (порт 8000)..."
+npm run dev -- --port 8000 > frontend.log 2>&1 &
+echo $! > "$FRONTEND_PID_FILE"
+echo "   Frontend запущен (PID: $(cat $FRONTEND_PID_FILE))"
 
 echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║              ✅ СЕРВЕРЫ УСПЕШНО ЗАПУЩЕНЫ                     ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo "✅ СЕРВЕРЫ ПЕРЕЗАПУЩЕНЫ"
+echo "🌐 Локальный адрес: http://localhost:8000"
+echo "📝 Логи: server.log, frontend.log"
 echo ""
-echo "🌐 Откройте браузер:"
-echo "   http://localhost:8000"
-echo ""
-echo "💡 Для остановки нажмите Ctrl+C или выполните:"
-echo "   pkill -f 'node'"
-echo ""
-
-# Ждем сигнала остановки
-wait
-
+echo "💡 Используйте этот скрипт для быстрого обновления серверов."

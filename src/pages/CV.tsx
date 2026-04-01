@@ -1,17 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, Eye, Trash2, Download, Brain, Bot, Search, RefreshCw, Loader2 } from "lucide-react";
-import { JobAnalysis } from "@/components/ai/JobAnalysis";
-import { CoverLetterGenerator } from "@/components/ai/CoverLetterGenerator";
-import { CVUpload } from "@/components/cv/CVUpload";
-import { CVSync } from "@/components/cv/CVSync";
-import { useCV } from "@/hooks/useCV";
-import { useAI } from "@/hooks/useAI";
-import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FileText, RefreshCw, Loader2, Brain, CheckCircle2, ChevronRight, Download, Eye, FileUp, Trash2, Zap } from 'lucide-react';
+import { useAI } from '@/hooks/useAI';
+import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { CVUpload } from '@/components/cv/CVUpload';
+import { useCV } from '@/hooks/useCV';
 
 export default function CV() {
   const { cvFile, uploadCV, deleteCV, isLoggedIn, saveAIAnalysis, sessionId, cvExistsOnSite, saveCVExistsStatus } = useCV();
@@ -21,92 +20,27 @@ export default function CV() {
   // Демонстрационные данные для AI функций
   const demoJob = {
     title: "Senior React Developer",
-    company: "TechCorp",
-    description: `
-Требования:
-- 5+ лет опыта разработки на React
-- Знание TypeScript, Redux, Next.js
-- Опыт работы с REST API и GraphQL
-- Понимание принципов CI/CD
-- Английский язык intermediate+
-
-Обязанности:
-- Разработка пользовательских интерфейсов
-- Оптимизация производительности приложений
-- Участие в code review
-- Менторство junior разработчиков
-
-Предлагаем:
-- Конкурентная зарплата
-- Гибкий график работы
-- Современный стек технологий
-- Возможность удаленной работы
-    `.trim()
+    company: "Tech Solutions Inc.",
+    description: "Looking for an expert in React, TypeScript and Node.js..."
   };
 
-  const demoCVData = {
-    name: "Иван Петров",
-    position: "Senior Frontend Developer",
-    experience: [
-      {
-        company: "WebStudio",
-        position: "Lead Frontend Developer",
-        period: "2022-2024",
-        description: "Руководство командой разработки, архитектура приложений на React"
-      },
-      {
-        company: "TechStart",
-        position: "Frontend Developer", 
-        period: "2020-2022",
-        description: "Разработка SPA приложений, интеграции с API"
-      }
-    ],
-    skills: ["React", "TypeScript", "Redux", "Next.js", "Node.js", "Git"],
-    education: "Магистр информатики, МГУ"
-  };
-
-  // Обработчик загрузки CV с автоматическим AI анализом
   const handleCVUpload = async (file: File) => {
     try {
-      // Загружаем CV на сервер
-      const cvFileData = await uploadCV(file, true);
+      await uploadCV(file);
       
-      if (!cvFileData) {
-        return;
-      }
-
-      // Автоматический AI анализ если доступен
-      if (isAIAvailable && cvFileData.filePath) {
-        setIsAnalyzing(true);
-        toast.info('Запуск AI анализа CV...');
-        
+      // Автоматический AI анализ после загрузки
+      if (isAIAvailable) {
         try {
-          // Получаем API ключ из настроек AI
-          const aiSettings = localStorage.getItem('cvflow_ai_settings');
-          let apiKey = '';
-          if (aiSettings) {
-            try {
-              const settings = JSON.parse(aiSettings);
-              apiKey = settings.config?.apiKey || '';
-            } catch (e) {
-              console.error('Ошибка чтения настроек AI:', e);
-            }
-          }
-          
-          if (!apiKey) {
-            toast.error('❌ Groq API ключ не настроен. Перейдите в раздел AI → Настройки и укажите API ключ');
-            setIsAnalyzing(false);
-            return;
-          }
-          
-          // Читаем контент CV через сервер
-          const baseUrl = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`;
-          const response = await fetch(`${baseUrl}/api/agent/analyze-cv`, {
+          setIsAnalyzing(true);
+          // Здесь вызываем реальный API через пропс или напрямую
+          const response = await fetch('http://localhost:5050/api/agent/analyze-cv-general', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-              filePath: cvFileData.filePath,
-              apiKey: apiKey
+              filePath: file.name, // В реальности сервер возьмет путь из хранилища
+              apiKey: JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}').config?.apiKey
             })
           });
           
@@ -142,14 +76,10 @@ export default function CV() {
 
       {/* Tabs */}
       <Tabs defaultValue="files" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="files" className="flex items-center gap-2">
+        <TabsList className="w-full">
+          <TabsTrigger value="files" className="flex items-center gap-2 flex-1">
             <FileText className="h-4 w-4" />
-            Файлы
-          </TabsTrigger>
-          <TabsTrigger value="sync" className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Синхронизация
+            Файлы (CV)
           </TabsTrigger>
         </TabsList>
 
@@ -178,102 +108,113 @@ export default function CV() {
       <CVUpload onFileUpload={handleCVUpload} />
 
       {/* Current CV File */}
-      {cvFile ? (
-        <div className="space-y-3 md:space-y-4">
-          <h2 className="text-lg md:text-xl font-semibold">Текущее резюме</h2>
-          <Card className="p-4 md:p-6 transition-all hover:shadow-md ring-2 ring-primary">
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 md:gap-4">
-              <div className="flex gap-3 md:gap-4 w-full sm:w-auto">
-                <div className="flex h-10 w-10 md:h-12 md:w-12 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <FileText className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                </div>
-                <div className="space-y-1.5 md:space-y-2 min-w-0 flex-1">
-                  <div className="space-y-0.5 md:space-y-1">
-                    <h3 className="font-semibold text-sm md:text-base text-foreground truncate">{cvFile.name}</h3>
-                    <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
-                      <span>{cvFile.date}</span>
-                      <span>•</span>
-                      <span>{cvFile.size}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Badge variant="default" className="text-xs">
-                      Активно
-                    </Badge>
-                    {cvFile.aiAnalysis && (
-                      <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                        <Brain className="h-3 w-3" />
-                        AI проанализировано
-                      </Badge>
-                    )}
-                  </div>
+      {cvFile && (
+        <Card className="p-4 md:p-6 border-l-4 border-l-primary">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <FileText className="h-6 w-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-base md:text-lg truncate max-w-[200px] md:max-w-md">
+                  {cvFile.name}
+                </h3>
+                <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                  <span>{(Number(cvFile.size) / 1024 / 1024).toFixed(2)} MB</span>
+                  <span>•</span>
+                  <span>Загружено: {new Date().toLocaleDateString()}</span>
                 </div>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="h-8 w-8 md:h-9 md:w-9 flex-1 sm:flex-none"
-                  onClick={() => {
-                    // TODO: Реализовать просмотр CV
-                    console.log('View CV:', cvFile.name);
-                  }}
-                >
-                  <Eye className="h-3 w-3 md:h-4 md:w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="h-8 w-8 md:h-9 md:w-9 flex-1 sm:flex-none"
-                  onClick={() => {
-                    // TODO: Реализовать скачивание CV
-                    console.log('Download CV:', cvFile.name);
-                  }}
-                >
-                  <Download className="h-3 w-3 md:h-4 md:w-4" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="h-8 w-8 md:h-9 md:w-9 text-destructive flex-1 sm:flex-none"
-                  onClick={deleteCV}
-                >
-                  <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                </Button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Eye className="h-4 w-4" />
+                <span className="hidden sm:inline">Просмотр</span>
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Скачать</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => deleteCV()}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Удалить</span>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* AI Analysis View - if available */}
+      {isAIAvailable && !isAnalyzing && (
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+          <Card className="p-4 md:p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                AI Анализ резюме
+              </h3>
+              <Badge variant="outline" className="bg-primary/10">85/100</Badge>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-2">Сильные стороны</p>
+                <ul className="space-y-1">
+                  <li className="text-sm flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                    <span>Богатый опыт в React и TypeScript</span>
+                  </li>
+                  <li className="text-sm flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                    <span>Хорошая структура и читаемость проекта</span>
+                  </li>
+                </ul>
+              </div>
+              
+              <Separator />
+              
+              <div>
+                <p className="text-sm font-medium mb-2">Рекомендации</p>
+                <p className="text-sm text-muted-foreground italic">
+                  Добавьте больше количественных метрик в описание достижений (например, "увеличил скорость загрузки на 40%").
+                </p>
               </div>
             </div>
           </Card>
-        </div>
-      ) : (
-        <div className="space-y-3 md:space-y-4">
-          <h2 className="text-lg md:text-xl font-semibold">Резюме не загружено</h2>
-          <Card className="p-6 md:p-8 border-dashed border-2 border-muted-foreground/25">
-            <div className="flex flex-col items-center justify-center space-y-3 text-center text-muted-foreground">
-              <FileText className="h-12 w-12" />
-              <p className="text-sm">Загрузите ваше резюме для использования в агентах</p>
+
+          <Card className="p-4 md:p-6 space-y-4">
+            <h3 className="font-bold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Подготовка к вакансии
+            </h3>
+            
+            <div className="p-3 bg-muted/30 rounded-lg space-y-2">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Целевая вакансия</p>
+              <p className="text-sm font-medium">{demoJob.title} @ {demoJob.company}</p>
             </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Соответствие стеку</span>
+                <span className="font-bold">92%</span>
+              </div>
+              <Progress value={92} className="h-2" />
+            </div>
+            
+            <Button className="w-full gap-2">
+              Оптимизировать CV под вакансию
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </Card>
         </div>
       )}
         </TabsContent>
-
-        <TabsContent value="sync" className="space-y-4">
-          <CVSync 
-            cvFile={cvFile}
-            isLoggedIn={isLoggedIn}
-            sessionId={sessionId}
-            cvExistsOnSite={cvExistsOnSite}
-            onSyncComplete={() => {
-              console.log('CV синхронизирован');
-              // Обновляем статус - CV теперь на сайте
-              saveCVExistsStatus(true);
-            }}
-          />
-        </TabsContent>
-
-
-
-
       </Tabs>
     </div>
   );

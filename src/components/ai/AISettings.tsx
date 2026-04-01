@@ -49,7 +49,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   const [config, setConfig] = useState<AIConfig>({
     provider: 'groq',
     apiKey: '',
-    model: 'llama-3.1-8b-instant',
+    model: 'llama-3.3-70b-versatile',
     maxTokens: 2000,
     temperature: 0.7,
     enabledFeatures: {
@@ -67,6 +67,65 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<boolean | null>(null);
+  const [groqStatus, setGroqStatus] = useState<any>(null);
+  const [isRefreshingLimits, setIsRefreshingLimits] = useState(false);
+
+  const fetchGroqStatus = async () => {
+    try {
+      const res = await fetch("http://localhost:5050/api/agent/groq-status");
+      const data = await res.json();
+      if (data.success) setGroqStatus(data);
+    } catch (e) {
+      console.error("Failed to fetch groq status:", e);
+    }
+  };
+
+  const refreshGroqStatus = async () => {
+    try {
+      if (!config.apiKey) {
+        toast.error("Сначала введите API ключ");
+        return;
+      }
+      setIsRefreshingLimits(true);
+      const res = await fetch("http://localhost:5050/api/agent/groq-status/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: config.apiKey, model: config.model })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGroqStatus(data);
+        toast.success("Лимиты Groq обновлены");
+      } else if (data.error) {
+        // Обработка ошибки лимита из Groq
+        setGroqStatus({
+          error: data.error.message,
+          type: data.error.type,
+          code: data.error.code,
+          updatedAt: new Date().toISOString()
+        });
+        toast.error("Лимит Groq превышен");
+      } else {
+        toast.error(data.message || "Ошибка обновления лимитов");
+      }
+    } catch (e) {
+      console.error("Failed to refresh groq status:", e);
+      toast.error("Не удалось подключиться к серверу");
+    } finally {
+      setIsRefreshingLimits(false);
+    }
+  };
+
+  // Принудительная установка модели при смене провайдера или загрузке
+  useEffect(() => {
+    if (config.provider === 'groq' && config.model !== 'llama-3.3-70b-versatile') {
+      setConfig(prev => ({ ...prev, model: 'llama-3.3-70b-versatile' }));
+    }
+  }, [config.provider, config.model]);
+
+  useEffect(() => {
+    fetchGroqStatus();
+  }, []);
 
   // Загружаем настройки при инициализации
   useEffect(() => {
@@ -204,7 +263,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   setConfig(prev => ({
                     ...prev, 
                     provider: value,
-                    model: value === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-3.5-turbo'
+                    model: value === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4-turbo'
                   }));
                 }}
               >
@@ -246,10 +305,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 <SelectContent>
                   {config.provider === 'groq' ? (
                     <>
-                      <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B Instant</SelectItem>
-                      <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B Versatile</SelectItem>
-                      <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
-                      <SelectItem value="gemma2-9b-it">Gemma2 9B IT</SelectItem>
+                      <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Актуальная)</SelectItem>
                     </>
                   ) : (
                     <>
@@ -262,8 +318,8 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               </Select>
               <p className="text-xs text-muted-foreground">
                 {config.provider === 'groq' 
-                  ? 'Llama 3.1 8B Instant - быстрая и эффективная модель'
-                  : 'GPT-4 дороже, но качественнее'
+                  ? 'Llama 3.3 70B Versatile - единственная актуальная модель'
+                  : 'GPT-4 Turbo дороже, но качественнее'
                 }
               </p>
             </div>
@@ -337,6 +393,63 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               </div>
             </div>
           </>
+        )}
+
+        {/* Groq Limits */}
+        {config.provider === 'groq' && (
+          <div className="space-y-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Лимиты Groq API
+              </h4>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 gap-2" 
+                onClick={refreshGroqStatus}
+                disabled={isRefreshingLimits || !config.apiKey}
+              >
+                <RefreshCw className={`h-3 w-3 ${isRefreshingLimits ? 'animate-spin' : ''}`} />
+                Проверить лимиты
+              </Button>
+            </div>
+            
+            {groqStatus ? (
+              <div className="space-y-4">
+                {groqStatus.error ? (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-xs text-destructive space-y-1">
+                    <p className="font-bold">Ошибка: {groqStatus.code}</p>
+                    <p className="opacity-90">{groqStatus.error}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground uppercase">Токены</div>
+                      <div className="text-sm font-bold">{groqStatus.remainingTokens || '???'} / {groqStatus.limitTokens || '???'}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground uppercase">Запросы</div>
+                      <div className="text-sm font-bold">{groqStatus.remainingRequests || '???'} / {groqStatus.limitRequests || '???'}</div>
+                    </div>
+                  </div>
+                )}
+                
+                {groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil && (
+                  <div className="text-xs text-destructive font-medium bg-destructive/10 p-2 rounded">
+                    ⚠️ API на паузе до {new Date(groqStatus.pausedUntil).toLocaleTimeString()}
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground text-right border-t border-primary/10 pt-2">
+                  Обновлено: {groqStatus.updatedAt ? new Date(groqStatus.updatedAt).toLocaleTimeString() : 'Никогда'}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground italic text-center py-2">
+                Лимиты пока не проверены. Нажмите кнопку выше для запроса данных.
+              </div>
+            )}
+          </div>
         )}
 
         {/* Кнопки действий */}

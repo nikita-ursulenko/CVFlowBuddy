@@ -164,10 +164,10 @@ app.post('/api/agent/upload-cv', upload.single('cv'), async (req, res) => {
 // Analyze CV
 app.post('/api/agent/analyze-cv', async (req, res) => {
   try {
-    const { filePath, apiKey } = req.body;
+    const { filePath, apiKey, model } = req.body;
     if (!filePath || !apiKey) return res.status(400).json({ success: false, message: 'File/API key required' });
     
-    const cvData = await analyzeCVWithGroq(filePath, apiKey);
+    const cvData = await analyzeCVWithGroq(filePath, apiKey, model);
     res.json({ success: true, analysis: { ...cvData, serverFilePath: filePath } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -177,7 +177,7 @@ app.post('/api/agent/analyze-cv', async (req, res) => {
 // Sync CV with Site
 app.post('/api/agent/sync-cv', async (req, res) => {
   try {
-    const { sessionId, fileName, filePath, apiKey } = req.body;
+    const { sessionId, fileName, filePath, apiKey, model } = req.body;
     const agent = activeAgents.get(sessionId);
     if (!agent) return res.status(401).json({ success: false, message: 'Session not found' });
     
@@ -189,7 +189,7 @@ app.post('/api/agent/sync-cv', async (req, res) => {
     const cvExists = await agent.checkCVExists();
     if (cvExists) return res.json({ success: true, message: 'CV already exists' });
 
-    const cvData = await analyzeCVWithGroq(fullPath, apiKey);
+    const cvData = await analyzeCVWithGroq(fullPath, apiKey, model);
     const result = await agent.uploadCVWithGroqController(fullPath, cvData, apiKey);
     
     res.json(result);
@@ -201,7 +201,7 @@ app.post('/api/agent/sync-cv', async (req, res) => {
 // Auto-Apply
 app.post('/api/agent/auto-apply-jobs', async (req, res) => {
   try {
-    const { sessionId, cvData, maxJobs = 10, apiKey, smtpConfig, emailMode = 'auto' } = req.body;
+    const { sessionId, cvData, maxJobs = 10, apiKey, model, smtpConfig, emailMode = 'auto' } = req.body;
     let agent = activeAgents.get(sessionId);
     
     if (!agent) {
@@ -223,7 +223,7 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     if (!isBrowserActive(agent)) await agent.initialize();
 
     // Start in background
-    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, smtpConfig, emailMode })
+    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, model, smtpConfig, emailMode })
       .then(async result => {
         console.log(`✅ Auto-apply ${sessionId} done`);
         // Автоматически закрываем браузер после завершения отправок
@@ -251,6 +251,50 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
 app.get('/api/stats', (req, res) => res.json(getStats()));
 app.get('/api/agent/groq-status', (req, res) => {
   res.json({ success: true, ...getGroqStatus() });
+});
+
+app.post('/api/agent/groq-status/refresh', async (req, res) => {
+  try {
+    const { apiKey, model } = req.body;
+    if (!apiKey) return res.status(400).json({ success: false, message: 'API key required' });
+
+    console.log(`📊 Refreshing Groq limits for model: ${model || 'llama-3.3-70b-versatile'}`);
+    
+    const { createGroqClient } = await import('./utils.js');
+    const { saveGroqStatusFromHeaders } = await import('./storage.js');
+    
+    const groq = createGroqClient(apiKey);
+    const { response } = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: model || 'llama-3.3-70b-versatile',
+      max_tokens: 1
+    }).withResponse();
+
+    saveGroqStatusFromHeaders(response.headers);
+    res.json({ success: true, ...getGroqStatus() });
+  } catch (error) {
+    console.error('Groq refresh error:', error);
+    
+    // Если в ошибке есть заголовки (например, при 429), сохраняем их
+    if (error.response && error.response.headers) {
+      try {
+        const { saveGroqStatusFromHeaders } = await import('./storage.js');
+        saveGroqStatusFromHeaders(error.response.headers);
+      } catch (headerErr) {
+        console.error('Failed to save headers from error:', headerErr);
+      }
+    }
+
+    if (error.error) {
+      return res.status(error.status || 400).json({ 
+        success: false, 
+        error: error.error,
+        message: error.message,
+        ...getGroqStatus() // Добавляем текущие лимиты даже при ошибке
+      });
+    }
+    res.status(500).json({ success: false, message: error.message, ...getGroqStatus() });
+  }
 });
 app.post('/api/stats/success', (req, res) => { saveSuccessStat(req.body); res.json({ success: true }); });
 app.post('/api/stats/error', (req, res) => { saveErrorStat(req.body); res.json({ success: true }); });

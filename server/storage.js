@@ -152,3 +152,15 @@ export function saveGroqStatus(data) {
     updatedAt: new Date().toISOString() 
   });
 }
+
+export function saveGroqStatusFromHeaders(headers) {
+  const data = {
+    remainingTokens: headers.get('x-ratelimit-remaining-tokens'),
+    limitTokens: headers.get('x-ratelimit-limit-tokens'),
+    resetTokens: headers.get('x-ratelimit-reset-tokens'),
+    remainingRequests: headers.get('x-ratelimit-remaining-requests'),
+    limitRequests: headers.get('x-ratelimit-limit-requests'),
+    resetRequests: headers.get('x-ratelimit-reset-requests'),
+  };
+  saveGroqStatus(data);
+}

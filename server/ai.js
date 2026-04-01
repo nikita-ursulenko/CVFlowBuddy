@@ -4,7 +4,7 @@ import { readPdfText, createGroqClient } from './utils.js';
 /**
  * ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV
  */
-export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey) {
+export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model) {
   console.log('🤖 ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV...');
   
   try {
@@ -33,20 +33,27 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey) {
     ТЕКСТ РЕЗЮМЕ:
     ${cvText.substring(0, 8000)}`;
 
-    const response = await groq.chat.completions.create({
+    const { data, response } = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: 'Ты карьерный консультант. Отвечай только валидным JSON на русском языке.' },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.1-70b-versatile',
+      model: model || 'llama-3.3-70b-versatile',
       temperature: 0.3,
       response_format: { type: "json_object" }
-    });
+    }).withResponse();
 
-    const resultText = response.choices[0]?.message?.content || '{}';
+    // Извлекаем лимиты
+    import('./storage.js').then(m => m.saveGroqStatusFromHeaders(response.headers));
+
+    const resultText = data.choices[0]?.message?.content || '{}';
     return JSON.parse(resultText);
   } catch (error) {
     console.error('❌ Ошибка анализа CV:', error);
+    // Если ошибка 429 - сохраняем статус паузы
+    if (error.status === 429) {
+      import('./storage.js').then(m => m.saveGroqStatus({ pausedUntil: Date.now() + 60000 }));
+    }
     throw error;
   }
 }
@@ -54,7 +61,7 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey) {
 /**
  * ПОЛНЫЙ АНАЛИЗ CV ДЛЯ ИЗВЛЕЧЕНИЯ ДАННЫХ
  */
-export async function analyzeCVWithGroq(cvFilePath, apiKey) {
+export async function analyzeCVWithGroq(cvFilePath, apiKey, model) {
   console.log('🤖 НАЧИНАЕМ АНАЛИЗ CV С ПОМОЩЬЮ GROQ AI...');
   console.log(`📄 Файл CV: ${cvFilePath}`);
   
@@ -79,7 +86,7 @@ export async function analyzeCVWithGroq(cvFilePath, apiKey) {
     
     // ШАГ 3: АНАЛИЗ
     const groq = createGroqClient(apiKey);
-    const completion = await groq.chat.completions.create({
+    const { data, response } = await groq.chat.completions.create({
       messages: [
         {
           role: 'system',
@@ -96,12 +103,15 @@ export async function analyzeCVWithGroq(cvFilePath, apiKey) {
           content: `Проанализируй это резюме:\n\n${cleanedText.substring(0, 10000)}`
         }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: model || 'llama-3.3-70b-versatile',
       temperature: 0.2,
       max_tokens: 2000
-    });
+    }).withResponse();
     
-    const responseText = completion.choices[0]?.message?.content;
+    // Извлекаем лимиты
+    import('./storage.js').then(m => m.saveGroqStatusFromHeaders(response.headers));
+
+    const responseText = data.choices[0]?.message?.content;
     if (!responseText) throw new Error('Groq не вернул ответ');
     
     let cleanText = responseText.trim().replace(/```json\s*|```/g, '');

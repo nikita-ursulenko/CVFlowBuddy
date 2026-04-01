@@ -11,17 +11,6 @@ export default function AI() {
   const { getEmails, sendEmail } = useAI();
   const [emails, setEmails] = useState<any[]>([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
-  const [groqStatus, setGroqStatus] = useState<any>(null);
-
-  const fetchGroqStatus = async () => {
-    try {
-      const res = await fetch("http://localhost:5050/api/agent/groq-status");
-      const data = await res.json();
-      if (data.success) setGroqStatus(data);
-    } catch (e) {
-      console.error("Failed to fetch groq status:", e);
-    }
-  };
 
   const fetchEmails = async () => {
     try {
@@ -37,11 +26,9 @@ export default function AI() {
 
   useEffect(() => {
     fetchEmails();
-    fetchGroqStatus();
     // Автообновление каждые 10 сек
     const interval = setInterval(() => {
       fetchEmails();
-      fetchGroqStatus();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -96,36 +83,6 @@ export default function AI() {
           </Button>
         </div>
       </div>
-
-      {/* Groq Limit Status */}
-      {groqStatus && (groqStatus.remainingTokens || groqStatus.pausedUntil) && (
-        <Card className={`p-4 border border-border shadow-sm flex items-center justify-between transition-colors ${
-          groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil 
-            ? "bg-destructive/5 text-destructive" 
-            : "bg-primary/5 text-primary"
-        }`}>
-          <div className="flex items-center gap-3 text-sm font-medium">
-            <div className={`h-2 w-2 rounded-full ${
-            groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil ? "bg-destructive animate-pulse" : "bg-primary"
-          }`} />
-          {groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil ? (
-            <span>
-              Groq на паузе до {new Date(groqStatus.pausedUntil).toLocaleTimeString()}. Лимит превышен.
-            </span>
-            ) : (
-              <span>
-                Groq API: Осталось ~{groqStatus.remainingTokens || "???"} токенов 
-                {groqStatus.resetTokens && ` (Обновится через ${groqStatus.resetTokens})`}
-              </span>
-            )}
-          </div>
-          {groqStatus.updatedAt && (
-            <span className="text-[10px] opacity-70">
-              Обновлено: {new Date(groqStatus.updatedAt).toLocaleTimeString()}
-            </span>
-          )}
-        </Card>
-      )}
 
       {/* Email Tabs */}
       <Tabs defaultValue="queue" className="w-full">
