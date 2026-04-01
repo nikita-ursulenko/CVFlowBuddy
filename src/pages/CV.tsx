@@ -142,7 +142,7 @@ export default function CV() {
 
       {/* Tabs */}
       <Tabs defaultValue="files" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="files" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Файлы
@@ -151,29 +151,25 @@ export default function CV() {
             <RefreshCw className="h-4 w-4" />
             Синхронизация
           </TabsTrigger>
-          <TabsTrigger value="analysis" className="flex items-center gap-2">
-            <Brain className="h-4 w-4" />
-            AI Анализ
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="files" className="space-y-4">
 
       {/* AI Status Alert */}
       {isAnalyzing && (
-        <Alert className="bg-blue-50 border-blue-200">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-          <AlertDescription className="text-blue-800">
+        <Alert className="bg-primary/10 border-primary/20">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <AlertDescription className="text-primary font-medium">
             AI анализирует ваше CV... Это займет несколько секунд.
           </AlertDescription>
         </Alert>
       )}
 
       {!isAIAvailable && (
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <Brain className="h-4 w-4 text-yellow-600" />
-          <AlertDescription className="text-yellow-800">
-            AI функции недоступны. Настройте API ключ в разделе "Настройки" для автоматического анализа CV.
+        <Alert className="bg-destructive/10 border-destructive/20">
+          <Brain className="h-4 w-4 text-destructive" />
+          <AlertDescription className="text-destructive font-medium">
+            AI функции недоступны. Настройте API ключ в полях "Настройки" для автоматического анализа CV.
           </AlertDescription>
         </Alert>
       )}
@@ -276,12 +272,7 @@ export default function CV() {
         </TabsContent>
 
 
-        <TabsContent value="analysis" className="space-y-4">
-          <JobAnalysis 
-            jobDescription="Общий анализ резюме для оценки сильных сторон и зон роста."
-            cvData={demoCVData}
-          />
-        </TabsContent>
+
 
       </Tabs>
     </div>

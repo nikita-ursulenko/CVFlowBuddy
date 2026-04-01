@@ -2,14 +2,26 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Send, Mail, ExternalLink, CheckCircle2, Clock, Copy, Inbox } from "lucide-react";
+import { RefreshCw, Send, Mail, ExternalLink, CheckCircle2, Clock, Copy, Inbox, History, List } from "lucide-react";
 import { useAI } from "@/hooks/useAI";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AI() {
   const { getEmails, sendEmail } = useAI();
   const [emails, setEmails] = useState<any[]>([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
+  const [groqStatus, setGroqStatus] = useState<any>(null);
+
+  const fetchGroqStatus = async () => {
+    try {
+      const res = await fetch("http://localhost:5050/api/agent/groq-status");
+      const data = await res.json();
+      if (data.success) setGroqStatus(data);
+    } catch (e) {
+      console.error("Failed to fetch groq status:", e);
+    }
+  };
 
   const fetchEmails = async () => {
     try {
@@ -25,8 +37,12 @@ export default function AI() {
 
   useEffect(() => {
     fetchEmails();
-    // Автообновление каждые 10 сек — чтобы письма появлялись сразу после работы агента
-    const interval = setInterval(fetchEmails, 10000);
+    fetchGroqStatus();
+    // Автообновление каждые 10 сек
+    const interval = setInterval(() => {
+      fetchEmails();
+      fetchGroqStatus();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -81,121 +97,176 @@ export default function AI() {
         </div>
       </div>
 
-      {/* Email list */}
-      {emails.length === 0 ? (
-        <Card className="p-16 flex flex-col items-center justify-center text-center space-y-4">
-          <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
-            <Inbox className="h-7 w-7 text-muted-foreground" />
+      {/* Groq Limit Status */}
+      {groqStatus && (groqStatus.remainingTokens || groqStatus.pausedUntil) && (
+        <Card className={`p-4 border border-border shadow-sm flex items-center justify-between transition-colors ${
+          groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil 
+            ? "bg-destructive/5 text-destructive" 
+            : "bg-primary/5 text-primary"
+        }`}>
+          <div className="flex items-center gap-3 text-sm font-medium">
+            <div className={`h-2 w-2 rounded-full ${
+            groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil ? "bg-destructive animate-pulse" : "bg-primary"
+          }`} />
+          {groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil ? (
+            <span>
+              Groq на паузе до {new Date(groqStatus.pausedUntil).toLocaleTimeString()}. Лимит превышен.
+            </span>
+            ) : (
+              <span>
+                Groq API: Осталось ~{groqStatus.remainingTokens || "???"} токенов 
+                {groqStatus.resetTokens && ` (Обновится через ${groqStatus.resetTokens})`}
+              </span>
+            )}
           </div>
-          <div className="space-y-1">
-            <h3 className="font-semibold text-lg">Очередь пуста</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Запустите агента — он найдёт HR-почту по каждой компании и сгенерирует уникальное письмо
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground opacity-60">
-            Автообновление каждые 10 сек
-          </p>
+          {groqStatus.updatedAt && (
+            <span className="text-[10px] opacity-70">
+              Обновлено: {new Date(groqStatus.updatedAt).toLocaleTimeString()}
+            </span>
+          )}
         </Card>
-      ) : (
-        <div className="space-y-3">
-          {emails.map((email) => (
-            <Card
-              key={email.id}
-              className={`p-4 md:p-5 transition-all border-l-4 ${
-                email.status === 'sent'
-                  ? 'border-l-green-500 opacity-70'
-                  : 'border-l-blue-500'
-              }`}
-            >
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 space-y-2 min-w-0">
-                  {/* Status + timestamp */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {email.status === 'sent' ? (
-                      <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 shrink-0">
-                        <CheckCircle2 className="h-3 w-3 mr-1" /> Отправлено
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 shrink-0">
-                        <Clock className="h-3 w-3 mr-1" /> Ожидает
-                      </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(email.timestamp).toLocaleString('ru-RU')}
-                    </span>
-                  </div>
+      )}
 
-                  {/* Company + title */}
-                  <h3 className="font-bold text-base md:text-lg leading-tight truncate">
-                    {email.company} — {email.jobTitle}
-                  </h3>
+      {/* Email Tabs */}
+      <Tabs defaultValue="queue" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="queue" className="flex items-center gap-2">
+            <List className="h-4 w-4" />
+            Очередь ({pending.length})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            История ({sent.length})
+          </TabsTrigger>
+        </TabsList>
 
-                  {/* Email address */}
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    <div className="flex items-center gap-1.5 text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                      <Mail className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate max-w-[200px]">{email.email}</span>
-                    </div>
-                    {email.jobUrl && (
-                      <a
-                        href={email.jobUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Вакансия
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Subject */}
-                  {email.subject && (
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Тема: {email.subject}
-                    </p>
-                  )}
-
-                  {/* Letter preview */}
-                  <p className="text-sm text-muted-foreground line-clamp-3 bg-muted/20 p-3 rounded-md border italic">
-                    "{email.content}"
-                  </p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex md:flex-col gap-2 justify-end shrink-0">
-                  <Button
-                    size="sm"
-                    className="gap-2"
-                    disabled={email.status === 'sent'}
-                    onClick={() => handleSend(email.id)}
-                  >
-                    <Send className="h-4 w-4" />
-                    Отправить
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => copyToClipboard(email.content)}
-                  >
-                    <Copy className="h-4 w-4" />
-                    Копировать
-                  </Button>
-                </div>
+        <TabsContent value="queue" className="space-y-3 mt-4">
+          {pending.length === 0 ? (
+            <Card className="p-16 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
+                <Inbox className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-semibold text-lg">Очередь пуста</h3>
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Запустите агента — он найдёт HR-почту и подготовит письма для отправки
+                </p>
               </div>
             </Card>
-          ))}
-
-          {/* Sent count footer */}
-          {sent.length > 0 && (
-            <p className="text-xs text-center text-muted-foreground pt-2">
-              ✅ Уже отправлено: {sent.length} писем
-            </p>
+          ) : (
+            pending.map((email) => renderEmailCard(email))
           )}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-3 mt-4">
+          {sent.length === 0 ? (
+            <Card className="p-16 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
+                <History className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-semibold text-lg">История пуста</h3>
+                <p className="text-sm text-muted-foreground">
+                  Здесь появятся письма, которые вы уже отправили
+                </p>
+              </div>
+            </Card>
+          ) : (
+            sent.map((email) => renderEmailCard(email))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
+
+  function renderEmailCard(email: any) {
+    return (
+      <Card
+        key={email.id}
+        className={`p-4 md:p-5 transition-all border-l-4 bg-card ${
+          email.status === 'sent'
+            ? 'border-l-success opacity-80'
+            : 'border-l-primary hover:shadow-md'
+        }`}
+      >
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 space-y-2 min-w-0">
+            {/* Status + timestamp */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {email.status === 'sent' ? (
+                <Badge variant="secondary" className="bg-success/10 text-success hover:bg-success/20 border-success/20 shrink-0">
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> Отправлено
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20 shrink-0">
+                  <Clock className="h-3 w-3 mr-1" /> Ожидает
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {new Date(email.timestamp).toLocaleString('ru-RU')}
+              </span>
+            </div>
+
+            {/* Company + title */}
+            <h3 className="font-bold text-base md:text-lg leading-tight truncate">
+              {email.company} — {email.jobTitle}
+            </h3>
+
+            {/* Email address */}
+            <div className="flex flex-wrap gap-2 text-sm">
+              <div className="flex items-center gap-1.5 text-muted-foreground bg-muted/50 px-2 py-1 rounded">
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate max-w-[200px]">{email.email}</span>
+              </div>
+              {email.jobUrl && (
+                <a
+                  href={email.jobUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-primary hover:underline bg-primary/10 px-2 py-1 rounded transition-colors"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Вакансия
+                </a>
+              )}
+            </div>
+
+            {/* Subject */}
+            {email.subject && (
+              <p className="text-xs text-muted-foreground font-medium">
+                Тема: {email.subject}
+              </p>
+            )}
+
+            {/* Letter preview */}
+            <p className="text-sm text-muted-foreground line-clamp-3 bg-muted/20 p-3 rounded-md border italic whitespace-pre-wrap">
+              "{email.content}"
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex md:flex-col gap-2 justify-end shrink-0">
+            <Button
+              size="sm"
+              className="gap-2"
+              disabled={email.status === 'sent'}
+              onClick={() => handleSend(email.id)}
+            >
+              <Send className="h-4 w-4" />
+              Отправить
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => copyToClipboard(email.content)}
+            >
+              <Copy className="h-4 w-4" />
+              Копировать
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 }

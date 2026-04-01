@@ -280,8 +280,20 @@ export class SimpleLucruAgent {
 
   async autoApplyToJobs(cvData, options = {}) {
     this.isStopped = false;
-    this.processedCompanies = new Set(); // сброс на каждый новый запуск
-    this.processedEmails = new Set();    // сброс на каждый новый запуск
+    
+    // Загружаем историю из emails.json для персистентной дедупликации
+    const { getEmails } = await import('./storage.js');
+    const history = getEmails();
+    
+    this.processedCompanies = new Set(
+      history.map(e => e.company?.toLowerCase().trim()).filter(Boolean)
+    );
+    this.processedEmails = new Set(
+      history.map(e => e.email?.toLowerCase().trim()).filter(Boolean)
+    );
+
+    console.log(`📜 Загружено из истории: ${this.processedCompanies.size} компаний, ${this.processedEmails.size} email-ов`);
+    
     return autoApplyToJobs(this, cvData, options);
   }
 }

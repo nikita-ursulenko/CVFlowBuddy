@@ -130,3 +130,25 @@ export function isDuplicateEmail(targetEmail, company) {
            (normalizedCompany && eCompany === normalizedCompany);
   });
 }
+
+export function getGroqStatus() {
+  return readJson(PATHS.groqStatus, {
+    remainingTokens: null,
+    limitTokens: null,
+    resetTokens: null,
+    remainingRequests: null,
+    limitRequests: null,
+    resetRequests: null,
+    pausedUntil: null,
+    updatedAt: null
+  });
+}
+
+export function saveGroqStatus(data) {
+  const current = getGroqStatus();
+  writeJson(PATHS.groqStatus, { 
+    ...current, 
+    ...data, 
+    updatedAt: new Date().toISOString() 
+  });
+}

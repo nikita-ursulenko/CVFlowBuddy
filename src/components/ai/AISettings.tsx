@@ -22,13 +22,12 @@ import {
   Settings, 
   CheckCircle, 
   AlertCircle, 
-  DollarSign,
   Activity,
   Trash2,
   RefreshCw,
   Zap
 } from 'lucide-react';
-import { AIConfig, AISettings, AIProvider } from '@/types/ai';
+import { AIConfig, AISettings as AISettingsType, AIProvider } from '../../types/ai';
 import { useAI } from '@/hooks/useAI';
 import { toast } from 'sonner';
 
@@ -44,8 +43,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     error, 
     isAvailable, 
     updateConfig, 
-    testConnection,
-    agent 
+    testConnection
   } = useAI();
 
   const [config, setConfig] = useState<AIConfig>({
@@ -73,7 +71,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   // Загружаем настройки при инициализации
   useEffect(() => {
     if (settings) {
-      setConfig(settings.config);
+      setConfig(settings.config as AIConfig);
     }
   }, [settings]);
 
@@ -88,26 +86,14 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   };
 
   const handleTest = async () => {
-    if (!config.apiKey) {
-      toast.error('Введите API ключ для тестирования');
-      return;
-    }
-
-    setIsTesting(true);
-    setTestResult(null);
-
     try {
-      // Создаем временный агент для тестирования
-      const tempConfig = { ...config };
-      updateConfig(tempConfig);
+      // Сохраняем настройки
+      updateConfig(config);
       
-      // Ждем немного для инициализации
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const res = await testConnection();
+      setTestResult(res);
       
-      const result = await testConnection();
-      setTestResult(result);
-      
-      if (result) {
+      if (res) {
         toast.success('Подключение к AI успешно!');
       } else {
         toast.error('Не удалось подключиться к AI');
@@ -121,45 +107,15 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   };
 
   const handleReset = () => {
-    setConfig({
-      apiKey: '',
-      model: 'gpt-3.5-turbo',
-      maxTokens: 2000,
-      temperature: 0.7,
-      enabledFeatures: {
-        jobAnalysis: true,
-        coverLetterGeneration: true,
-        cvOptimization: true,
-        jobFiltering: true
-      },
-      costLimits: {
-        dailyLimit: 5.0,
-        monthlyLimit: 50.0,
-        perRequestLimit: 1.0
-      }
-    });
     setTestResult(null);
   };
 
-  const getUsageStats = () => {
-    if (!agent) return null;
-    const usage = agent.getUsageStats();
-    const totalCost = usage.reduce((sum, req) => sum + req.cost, 0);
-    const totalRequests = usage.length;
-    const todayUsage = usage.filter(req => 
-      new Date(req.timestamp).toDateString() === new Date().toDateString()
-    );
-    const todayCost = todayUsage.reduce((sum, req) => sum + req.cost, 0);
-
-    return {
-      totalCost: totalCost.toFixed(4),
-      totalRequests,
-      todayCost: todayCost.toFixed(4),
-      todayRequests: todayUsage.length
-    };
-  };
-
-  const usageStats = getUsageStats();
+  const usageStats = settings?.usage ? {
+    totalCost: settings.usage.totalCost.toFixed(4),
+    totalRequests: settings.usage.totalRequests,
+    todayCost: "0.0000",
+    todayRequests: 0
+  } : null;
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -340,142 +296,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
               <p className="text-xs text-muted-foreground">
                 Выше = более креативно, ниже = более точно
               </p>
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Включенные функции */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Включенные функции</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Анализ вакансий</Label>
-                <p className="text-sm text-muted-foreground">
-                  Автоматический анализ требований и соответствия
-                </p>
-              </div>
-              <Switch
-                checked={config.enabledFeatures.jobAnalysis}
-                onCheckedChange={(checked) => 
-                  setConfig(prev => ({
-                    ...prev,
-                    enabledFeatures: { ...prev.enabledFeatures, jobAnalysis: checked }
-                  }))
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Генерация писем</Label>
-                <p className="text-sm text-muted-foreground">
-                  Создание сопроводительных писем
-                </p>
-              </div>
-              <Switch
-                checked={config.enabledFeatures.coverLetterGeneration}
-                onCheckedChange={(checked) => 
-                  setConfig(prev => ({
-                    ...prev,
-                    enabledFeatures: { ...prev.enabledFeatures, coverLetterGeneration: checked }
-                  }))
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Оптимизация CV</Label>
-                <p className="text-sm text-muted-foreground">
-                  Анализ и улучшение резюме
-                </p>
-              </div>
-              <Switch
-                checked={config.enabledFeatures.cvOptimization}
-                onCheckedChange={(checked) => 
-                  setConfig(prev => ({
-                    ...prev,
-                    enabledFeatures: { ...prev.enabledFeatures, cvOptimization: checked }
-                  }))
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Фильтрация вакансий</Label>
-                <p className="text-sm text-muted-foreground">
-                  Отбор релевантных вакансий
-                </p>
-              </div>
-              <Switch
-                checked={config.enabledFeatures.jobFiltering}
-                onCheckedChange={(checked) => 
-                  setConfig(prev => ({
-                    ...prev,
-                    enabledFeatures: { ...prev.enabledFeatures, jobFiltering: checked }
-                  }))
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Лимиты стоимости */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Лимиты стоимости
-          </h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="dailyLimit">Дневной лимит ($)</Label>
-              <Input
-                id="dailyLimit"
-                type="number"
-                min="0"
-                step="0.1"
-                value={config.costLimits.dailyLimit}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev,
-                  costLimits: { ...prev.costLimits, dailyLimit: parseFloat(e.target.value) }
-                }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="monthlyLimit">Месячный лимит ($)</Label>
-              <Input
-                id="monthlyLimit"
-                type="number"
-                min="0"
-                step="1"
-                value={config.costLimits.monthlyLimit}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev,
-                  costLimits: { ...prev.costLimits, monthlyLimit: parseFloat(e.target.value) }
-                }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="perRequestLimit">Лимит за запрос ($)</Label>
-              <Input
-                id="perRequestLimit"
-                type="number"
-                min="0"
-                step="0.1"
-                value={config.costLimits.perRequestLimit}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev,
-                  costLimits: { ...prev.costLimits, perRequestLimit: parseFloat(e.target.value) }
-                }))}
-              />
             </div>
           </div>
         </div>

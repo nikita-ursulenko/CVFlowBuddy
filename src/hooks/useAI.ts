@@ -2,20 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { agentServerAPI } from '@/lib/api/agent-server';
+import { AIConfig, AISettings, AIJobAnalysis } from '@/types/ai';
 
 // Упрощенные типы для AI функций
-export interface AIJobAnalysis {
-  relevance: number;
-  matchScore: number;
-  experienceLevel: 'junior' | 'middle' | 'senior' | 'lead';
-  companyType: string;
-  salaryRange?: string;
-  keySkills: string[];
-  requirements: string[];
-  recommendations: string[];
-  strengths: string[];    // Добавлено для общего анализа
-  weaknesses: string[];   // Добавлено для общего анализа
-}
 
 interface AICoverLetter {
   content: string;
@@ -34,24 +23,6 @@ interface AIOptimization {
   original: string;
   optimized: string;
   changes: string[];
-}
-
-interface AIConfig {
-  provider: 'openai' | 'groq';
-  apiKey: string;
-  model: string;
-}
-
-interface AISettings {
-  config: AIConfig;
-  usage: {
-    totalRequests: number;
-    totalTokens: number;
-    totalCost: number;
-    dailyUsage: any[];
-    lastReset: Date;
-  };
-  requests: any[];
 }
 
 interface AIState {

@@ -11,10 +11,10 @@ import { openMailClient } from './email.js';
 import { 
   getStats, 
   saveSuccessStat, 
-  saveErrorStat, 
   saveSiteStat, 
   getEmails, 
-  saveEmail 
+  saveEmail,
+  getGroqStatus 
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -249,6 +249,9 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
 
 // Stats routes
 app.get('/api/stats', (req, res) => res.json(getStats()));
+app.get('/api/agent/groq-status', (req, res) => {
+  res.json({ success: true, ...getGroqStatus() });
+});
 app.post('/api/stats/success', (req, res) => { saveSuccessStat(req.body); res.json({ success: true }); });
 app.post('/api/stats/error', (req, res) => { saveErrorStat(req.body); res.json({ success: true }); });
 app.post('/api/stats/site', (req, res) => { saveSiteStat(req.body); res.json({ success: true }); });

@@ -1,10 +1,7 @@
-/**
- * agent-email.js
- * Модуль: извлечение HR-email со страницы вакансии + генерация письма через Groq AI
- */
+import { createGroqClient, readPdfText } from './utils.js';
+import { saveEmail, isDuplicateEmail, saveGroqStatus } from './storage.js';
 
-import { createGroqClient } from './utils.js';
-import { saveEmail, isDuplicateEmail } from './storage.js';
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Извлекает email HR-а со страницы вакансии.
@@ -86,7 +83,12 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
           console.log('🤖 Groq AI: email не найден');
         }
       } catch (aiErr) {
-        console.warn('⚠️ Groq AI ошибка при поиске email:', aiErr.message);
+        if (aiErr.status === 429 || aiErr.message?.includes('429')) {
+          console.error(`🛑 Groq API Limit: 429 Too Many Requests`);
+          saveGroqStatus({ pausedUntil: Date.now() + 60000 });
+        } else {
+          console.warn('⚠️ Groq AI ошибка при поиске email:', aiErr.message);
+        }
       }
     }
 
@@ -99,51 +101,103 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null) {
   }
 }
 
-/**
- * Генерирует уникальное сопроводительное письмо через Groq AI
- * и сохраняет его в очередь (emails.json).
- */
 export async function generateAndQueueEmail({ companyName, jobTitle, jobDescription, cvData, apiKey, targetEmail, emailMode = 'auto' }) {
   if (!apiKey) return false;
   
   if (isDuplicateEmail(targetEmail, companyName)) {
     console.log(`⏩ Пропуск: Письмо для ${companyName} (${targetEmail}) уже существует в базе.`);
-    return true; // Считаем "успехом" для логики цикла
+    return true; 
   }
+
+  let cvText = '';
   try {
-    const groq = createGroqClient(apiKey);
-    const prompt = `Ты - HR-консультант. Напиши короткое энергичное сопроводительное письмо для отклика.
-Кандидат: ${cvData.firstName} ${cvData.lastName}
-Сайт/Портфолио: https://nikita-ursulenko.github.io/
-Компания: ${companyName}, Вакансия: ${jobTitle}
-Описание: ${jobDescription || 'Описание отсутствует, используй общие фразы'}
-Тон: энергичный, профессиональный. Обязательно упомяни в конце, что подробнее с работами можно ознакомиться на моем сайте https://nikita-ursulenko.github.io/.
-Сгенерируй ТОЛЬКО финальный текст письма, без вводных фраз вроде "Вот предложение:".`;
-
-    const completion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.7
-    });
-
-    const emailBody = completion.choices[0].message.content.trim();
-    const subject = `Отклик на вакансию ${jobTitle} - ${cvData.firstName} ${cvData.lastName}`;
-
-    saveEmail({
-      email: targetEmail,
-      company: companyName,
-      jobTitle,
-      subject,
-      content: emailBody,
-      cvPath: cvData.serverFilePath || cvData.filePath,
-      mode: emailMode,
-      status: 'pending'
-    });
-
-    console.log(`✉️ Письмо для HR ${companyName} (${targetEmail}) добавлено в очередь!`);
-    return true;
-  } catch (error) {
-    console.error('❌ Ошибка генерации письма:', error.message);
-    return false;
+    const cvPath = cvData.serverFilePath || cvData.filePath;
+    if (cvPath) {
+      console.log(`📄 Извлекаем текст из CV для контекста: ${cvPath}`);
+      cvText = await readPdfText(cvPath);
+    }
+  } catch (e) {
+    console.warn('⚠️ Не удалось прочитать CV PDF, используем только имя:', e.message);
   }
+
+  const maxRetries = 3;
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      const groq = createGroqClient(apiKey);
+      const prompt = `Ты - профессиональный HR-консультант и копирайтер. 
+Твоя задача: написать короткое, впечатляющее и персонализированное сопроводительное письмо от имени кандидата.
+
+ИНФОРМАЦИЯ О КАНДИДАТЕ (из CV):
+Имя: ${cvData.firstName} ${cvData.lastName}
+Портфолио/Сайт: https://nikita-ursulenko.github.io/
+Контекст из CV: ${cvText ? cvText.substring(0, 4000) : 'Имя: ' + cvData.firstName + ' ' + cvData.lastName}
+
+ИНФОРМАЦИЯ О ВАКАНСИИ:
+Компания: ${companyName}
+Должность: ${jobTitle}
+Описание вакансии: ${jobDescription || 'Описание отсутствует, ориентируйся на название должности'}
+
+ТРЕБОВАНИЯ К ПИСЬМУ:
+1. Тон: Энергичный, проактивный, профессиональный.
+2. Объем: Коротко (2-3 небольших абзаца). HR ценят краткость.
+3. Содержание: На основе контекста CV выдели 1-2 навыка или проекта, которые идеально подходят под эту вакансию. 
+4. Обязательный призыв к действию: В конце письма ОБЯЗАТЕЛЬНО упомяни, что примеры работ и подробное портфолио доступны на моем сайте: https://nikita-ursulenko.github.io/
+5. Формат: Только текст письма. Без темы, без приветствий типа "Вот ваше письмо", без подписей "Сгенерировано нейросетью".
+
+Сгенерируй только финальный текст письма.`;
+
+      const response = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7
+      }).asResponse();
+
+      const completion = await response.json();
+      const headers = response.headers;
+
+      // Сохраняем лимиты
+      saveGroqStatus({
+        remainingTokens: headers.get('x-ratelimit-remaining-tokens'),
+        limitTokens: headers.get('x-ratelimit-limit-tokens'),
+        resetTokens: headers.get('x-ratelimit-reset-tokens'),
+        remainingRequests: headers.get('x-ratelimit-remaining-requests'),
+        limitRequests: headers.get('x-ratelimit-limit-requests'),
+        resetRequests: headers.get('x-ratelimit-reset-requests'),
+        pausedUntil: null
+      });
+
+      const emailBody = completion.choices[0].message.content.trim();
+      const subject = `Отклик на вакансию ${jobTitle} - ${cvData.firstName} ${cvData.lastName}`;
+
+      saveEmail({
+        email: targetEmail,
+        company: companyName,
+        jobTitle,
+        subject,
+        content: emailBody,
+        cvPath: cvData.serverFilePath || cvData.filePath,
+        mode: emailMode,
+        status: 'pending'
+      });
+
+      console.log(`✉️ Письмо для HR ${companyName} (${targetEmail}) успешно сгенерировано с учетом CV!`);
+      return true;
+
+    } catch (error) {
+      attempt++;
+      if (error.status === 429 || error.message?.includes('rate_limit')) {
+        const waitTime = attempt * 10000; // 10s, 20s...
+        console.warn(`⏳ Лимит API Groq (429). Попытка ${attempt}/${maxRetries}. Ждем ${waitTime/1000}сек...`);
+        await sleep(waitTime);
+      } else {
+        console.error('❌ Ошибка генерации письма:', error.message);
+        return false;
+      }
+    }
+  }
+
+  console.error(`❌ Не удалось сгенерировать письмо после ${maxRetries} попыток из-за лимитов API.`);
+  return false;
 }

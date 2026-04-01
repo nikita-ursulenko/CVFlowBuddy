@@ -8,21 +8,26 @@ import {
   Settings, 
   Bell,
   Menu,
-  X
+  X,
+  Sun,
+  Moon,
+  Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTheme } from "./theme-provider";
 
 const navItems = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
   { name: "Сайты", path: "/sites", icon: Globe },
   { name: "CV", path: "/cv", icon: FileText },
-  { name: "AI", path: "/ai", icon: Sparkles },
+  { name: "Письма", path: "/ai", icon: Mail },
   { name: "Настройки", path: "/settings", icon: Settings },
 ];
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -38,25 +43,23 @@ export default function Layout() {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen border-r border-border bg-card transition-all duration-300",
-          sidebarOpen ? "w-64" : "-translate-x-full md:translate-x-0 md:w-16"
+          sidebarOpen ? "w-64" : "-translate-x-full md:translate-x-0 md:w-64"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between border-b border-border px-4">
-            {sidebarOpen && (
-              <div className="flex items-center gap-2 animate-fade-in">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent" />
-                <span className="text-lg font-semibold text-foreground">CV Agent</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent" />
+              <span className="text-lg font-semibold text-foreground">CV Agent</span>
+            </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden md:flex"
+              className="md:hidden"
             >
-              {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              <X className="h-4 w-4" />
             </Button>
           </div>
 
@@ -78,7 +81,7 @@ export default function Layout() {
                 }
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
-                {sidebarOpen && <span>{item.name}</span>}
+                <span>{item.name}</span>
               </NavLink>
             ))}
           </nav>
@@ -89,7 +92,7 @@ export default function Layout() {
       <div
         className={cn(
           "flex flex-1 flex-col transition-all duration-300",
-          sidebarOpen ? "md:ml-64" : "md:ml-16"
+          "md:ml-64"
         )}
       >
         {/* Topbar */}
@@ -106,6 +109,18 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 md:h-10 md:w-10"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4 md:h-5 md:w-5" />
+              ) : (
+                <Moon className="h-4 w-4 md:h-5 md:w-5" />
+              )}
+            </Button>
             <Button variant="ghost" size="icon" className="relative h-8 w-8 md:h-10 md:w-10">
               <Bell className="h-4 w-4 md:h-5 md:w-5" />
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive md:right-1.5 md:top-1.5" />

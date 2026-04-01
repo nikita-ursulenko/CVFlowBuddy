@@ -89,7 +89,7 @@ export default function Dashboard() {
       trend: "up" as const,
       icon: FileText,
       gradient: "from-blue-500 to-blue-600",
-      bgGradient: "from-blue-50 to-blue-100/50",
+      bgGradient: "from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10",
       iconBg: "from-blue-500 to-blue-600",
     },
     {
@@ -99,7 +99,7 @@ export default function Dashboard() {
       trend: "down" as const,
       icon: AlertCircle,
       gradient: "from-red-500 to-red-600",
-      bgGradient: "from-red-50 to-red-100/50",
+      bgGradient: "from-red-500/10 to-red-600/5 dark:from-red-500/20 dark:to-red-600/10",
       iconBg: "from-red-500 to-red-600",
     },
     {
@@ -109,7 +109,7 @@ export default function Dashboard() {
       trend: "up" as const,
       icon: CheckCircle2,
       gradient: "from-green-500 to-green-600",
-      bgGradient: "from-green-50 to-green-100/50",
+      bgGradient: "from-green-500/10 to-green-600/5 dark:from-green-500/20 dark:to-green-600/10",
       iconBg: "from-green-500 to-green-600",
     },
     {
@@ -119,7 +119,7 @@ export default function Dashboard() {
       trend: "up" as const,
       icon: Briefcase,
       gradient: "from-purple-500 to-purple-600",
-      bgGradient: "from-purple-50 to-purple-100/50",
+      bgGradient: "from-purple-500/10 to-purple-600/5 dark:from-purple-500/20 dark:to-purple-600/10",
       iconBg: "from-purple-500 to-purple-600",
     },
   ];
@@ -144,14 +144,14 @@ export default function Dashboard() {
                     <kpi.icon className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-700">{kpi.title}</p>
+                    <p className="text-sm font-semibold text-muted-foreground">{kpi.title}</p>
                     <div className="flex items-center gap-1 text-xs">
                       {kpi.trend === "up" ? (
-                        <ArrowUp className="h-3 w-3 text-green-600" />
+                        <ArrowUp className="h-3 w-3 text-success" />
                       ) : (
-                        <ArrowDown className="h-3 w-3 text-red-600" />
+                        <ArrowDown className="h-3 w-3 text-destructive" />
                       )}
-                      <span className={kpi.trend === "up" ? "text-green-600" : "text-red-600"}>
+                      <span className={kpi.trend === "up" ? "text-success" : "text-destructive"}>
                         {kpi.change}
                       </span>
                     </div>
@@ -159,7 +159,7 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              <div className="text-3xl md:text-4xl font-bold text-gray-900">
+              <div className="text-3xl md:text-4xl font-bold text-foreground">
                 {kpi.value}
               </div>
             </div>
@@ -169,16 +169,16 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid gap-6 md:gap-8 grid-cols-1 lg:grid-cols-2">
-        <Card className="relative overflow-hidden border-0 shadow-xl bg-gradient-to-br from-white to-blue-50/30 hover:shadow-2xl transition-all duration-300">
+        <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
           {/* Декоративные элементы */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100/20 to-purple-100/20 rounded-full -translate-y-12 translate-x-12"></div>
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full -translate-y-12 translate-x-12"></div>
           
           <div className="relative p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
-                <BarChart3 className="h-5 w-5 text-white" />
+              <div className="p-2 rounded-xl bg-primary shadow-lg">
+                <BarChart3 className="h-5 w-5 text-primary-foreground" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">CV по дням</h3>
+              <h3 className="text-xl font-bold text-foreground">CV по дням</h3>
             </div>
             
             <div className="h-64 flex items-end justify-between gap-2">
@@ -192,17 +192,17 @@ export default function Dashboard() {
                         className="w-full bg-gradient-to-t from-blue-500 to-blue-600 rounded-t-lg transition-all duration-300 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl"
                         style={{ height: `${height}%` }}
                       />
-                      <span className="text-xs font-semibold text-gray-600">
+                      <span className="text-xs font-semibold text-muted-foreground">
                         {new Date(day.date).toLocaleDateString('ru-RU', { weekday: 'short' })}
                       </span>
-                      <span className="text-xs font-bold text-blue-600">{day.sent}</span>
+                      <span className="text-xs font-bold text-primary">{day.sent}</span>
                     </div>
                   );
                 })
               ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
+                <div className="flex-1 flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
-                    <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                    <BarChart3 className="h-12 w-12 mx-auto mb-2 opacity-20" />
                     <p className="text-sm">Нет данных</p>
                   </div>
                 </div>
@@ -211,16 +211,16 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card className="relative overflow-hidden border-0 shadow-xl bg-gradient-to-br from-white to-purple-50/30 hover:shadow-2xl transition-all duration-300">
+        <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
           {/* Декоративные элементы */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-100/20 to-pink-100/20 rounded-full -translate-y-12 translate-x-12"></div>
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-accent/10 to-primary/10 rounded-full -translate-y-12 translate-x-12"></div>
           
           <div className="relative p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg">
-                <Users className="h-5 w-5 text-white" />
+              <div className="p-2 rounded-xl bg-accent shadow-lg">
+                <Users className="h-5 w-5 text-accent-foreground" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Вакансии по сайтам</h3>
+              <h3 className="text-xl font-bold text-foreground">Вакансии по сайтам</h3>
             </div>
             
             <div className="space-y-4">
@@ -228,8 +228,8 @@ export default function Dashboard() {
                 siteStats.map((item) => (
                   <div key={item.site} className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-800">{item.site}</span>
-                      <span className="text-sm font-bold text-purple-600">{item.totalVacancies}</span>
+                      <span className="font-semibold text-foreground">{item.site}</span>
+                      <span className="text-sm font-bold text-accent">{item.totalVacancies}</span>
                     </div>
                     <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200 shadow-inner">
                       <div
@@ -243,8 +243,8 @@ export default function Dashboard() {
                   </div>
                 ))
               ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                <div className="text-center text-muted-foreground py-8">
+                  <Users className="h-12 w-12 mx-auto mb-2 opacity-20" />
                   <p className="text-sm">Нет данных</p>
                 </div>
               )}
@@ -254,19 +254,19 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Activity */}
-      <Card className="relative overflow-hidden border-0 shadow-xl bg-gradient-to-br from-white to-green-50/30 hover:shadow-2xl transition-all duration-300">
+      <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
         {/* Декоративные элементы */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-100/20 to-blue-100/20 rounded-full -translate-y-12 translate-x-12"></div>
+        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-success/10 to-primary/10 rounded-full -translate-y-12 translate-x-12"></div>
         
         <div className="relative p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-green-600 shadow-lg">
-              <Activity className="h-5 w-5 text-white" />
+            <div className="p-2 rounded-xl bg-success shadow-lg">
+              <Activity className="h-5 w-5 text-success-foreground" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">Последние действия</h3>
+            <h3 className="text-xl font-bold text-foreground">Последние действия</h3>
             {recentActivity.length > 0 && (
               <div className="ml-auto">
-                <span className="text-sm text-gray-600 font-semibold">
+                <span className="text-sm text-muted-foreground font-semibold">
                   {startIndex + 1}-{Math.min(endIndex, recentActivity.length)} из {recentActivity.length}
                 </span>
               </div>
@@ -278,23 +278,23 @@ export default function Dashboard() {
             {/* Mobile: Cards */}
             <div className="space-y-4 md:hidden">
               {currentActivity.map((activity) => (
-                <div key={activity.id} className="bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200/50 p-4 shadow-sm hover:shadow-md transition-all duration-300">
+                <div key={activity.id} className="bg-card/80 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-all duration-300">
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="font-semibold text-gray-900 text-sm truncate">{activity.vacancy}</span>
+                    <span className="font-semibold text-foreground text-sm truncate">{activity.vacancy}</span>
                     {getStatusBadge(activity.status)}
                   </div>
-                  <div className="text-xs text-gray-600 space-y-1">
+                  <div className="text-xs text-muted-foreground space-y-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       {activity.site}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <div className="w-2 h-2 bg-muted-foreground/30 rounded-full"></div>
                       {activity.date}
                     </div>
                   </div>
                   {activity.url && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="mt-3 pt-3 border-t border-border">
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -314,7 +314,7 @@ export default function Dashboard() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-sm text-gray-600">
+                  <tr className="border-b border-border text-left text-sm text-muted-foreground">
                     <th className="pb-4 font-semibold">Вакансия</th>
                     <th className="pb-4 font-semibold">Сайт</th>
                     <th className="pb-4 font-semibold">Статус</th>
@@ -328,29 +328,29 @@ export default function Dashboard() {
                     return (
                       <tr
                         key={activity.id}
-                        className="border-b border-gray-100 last:border-0 transition-all duration-300 hover:bg-white/50 hover:shadow-sm"
+                        className="border-b border-border/50 last:border-0 transition-all duration-300 hover:bg-muted/30 hover:shadow-sm"
                       >
-                        <td className="py-4 font-semibold text-gray-900">{activity.vacancy}</td>
-                        <td className="py-4 text-gray-600">{activity.site}</td>
+                        <td className="py-4 font-semibold text-foreground">{activity.vacancy}</td>
+                        <td className="py-4 text-muted-foreground">{activity.site}</td>
                         <td className="py-4">
                           <Badge variant="outline" className={`${status.textColor} border-current shadow-sm`}>
                             <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${status.color}`} />
                             {status.label}
                           </Badge>
                         </td>
-                        <td className="py-4 text-sm text-gray-600">{activity.date}</td>
+                        <td className="py-4 text-sm text-muted-foreground">{activity.date}</td>
                         <td className="py-4 text-center">
                           {activity.url ? (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 px-2 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
                               onClick={() => window.open(activity.url, '_blank')}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
                           ) : (
-                            <span className="text-gray-400 text-xs">—</span>
+                            <span className="text-muted-foreground/30 text-xs">—</span>
                           )}
                         </td>
                       </tr>
@@ -362,14 +362,14 @@ export default function Dashboard() {
 
             {/* Пагинация */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="h-10 w-10 p-0 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+                    className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -395,8 +395,8 @@ export default function Dashboard() {
                           onClick={() => handlePageChange(pageNum)}
                           className={`h-10 w-10 p-0 transition-all duration-200 ${
                             currentPage === pageNum 
-                              ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg' 
-                              : 'border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                              ? 'bg-primary text-primary-foreground shadow-lg' 
+                              : 'border-border hover:bg-muted'
                           }`}
                         >
                           {pageNum}
@@ -410,21 +410,21 @@ export default function Dashboard() {
                     size="sm"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="h-10 w-10 p-0 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+                    className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
                 
-                <div className="text-sm text-gray-600 font-semibold">
+                <div className="text-sm text-muted-foreground font-semibold">
                   Страница {currentPage} из {totalPages}
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div className="text-center text-gray-500 py-12">
-            <Activity className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+          <div className="text-center text-muted-foreground py-12">
+            <Activity className="h-16 w-16 mx-auto mb-4 opacity-20" />
             <p className="text-lg font-semibold mb-2">Нет данных об активности</p>
             <p className="text-sm">Начните использовать агента для отслеживания действий</p>
           </div>

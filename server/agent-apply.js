@@ -5,7 +5,7 @@
  */
 
 import { extractEmailFromJobPage, generateAndQueueEmail } from './agent-email.js';
-import { saveSuccessStat, saveTotalCategoryJobs } from './storage.js';
+import { saveSuccessStat, saveTotalCategoryJobs, getGroqStatus } from './storage.js';
 
 /**
  * Группирует видимые вакансии по компаниям из DOM списка страницы.
@@ -138,6 +138,14 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       if (appliedCount >= maxJobs) { agent.stats.processedLimit = true; break; }
 
       const row = jobCards[i];
+      
+      // Проверка паузы Groq перед каждым шагом, требующим API
+      const groqStatus = getGroqStatus();
+      if (groqStatus.pausedUntil && Date.now() < groqStatus.pausedUntil) {
+        const waitMs = groqStatus.pausedUntil - Date.now();
+        console.warn(`⏳ Groq API на паузе до ${new Date(groqStatus.pausedUntil).toLocaleTimeString()}. Ожидание ${Math.ceil(waitMs/1000)} сек...`);
+        await page.waitForTimeout(waitMs);
+      }
 
       // Убираем мешающие overlay
       await page.evaluate(() => {
@@ -162,8 +170,14 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       const companyInfo = companyMap[companyKey];
       const vacancyCount = companyInfo ? companyInfo.vacancies.length : 1;
 
+      if (agent.processedCompanies.has(companyKey)) {
+        console.log(`⏩ Пропуск: "${companyKey}" уже в истории. Скрываем...`);
+        await hideVacancy(page, row, jobData.title, apiKey, agent.findAndClickWithAI?.bind(agent));
+        continue;
+      }
+
       // HR email — открываем страницу ТОЛЬКО 1 раз на компанию или на конкретный Email
-      if (apiKey && !agent.processedCompanies.has(companyKey)) {
+      if (apiKey) {
         console.log(`🏢 "${companyKey}" | ${vacancyCount} вак. | Ищем HR email...`);
         const { email, jobDescription, companyName } = await extractEmailFromJobPage(
           browser, `https://lucru.md${jobData.href}`, apiKey
@@ -192,8 +206,6 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
         agent.processedCompanies.add(companyKey);
         if (companyName) agent.processedCompanies.add(companyName.toLowerCase().trim());
         await page.bringToFront();
-      } else if (agent.processedCompanies.has(companyKey)) {
-        console.log(`⏩ Пропуск: "${companyKey}" (или Email) уже обработана (${vacancyCount} вак.)`);
       }
 
       // Отправка CV
@@ -252,6 +264,12 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       } catch (rowErr) {
         console.error(`❌ Ошибка при обработке вакансии "${jobData.title}":`, rowErr.message);
         results.push({ job: jobData.title, status: 'error', error: rowErr.message });
+      }
+
+      // Пауза между вакансиями для имитации человека и предотвращения 429 Rate Limit
+      if (i < jobCards.length - 1) {
+        console.log(`⏳ Ждем 5 секунд перед следующей вакансией...`);
+        await page.waitForTimeout(5000);
       }
     }
 
