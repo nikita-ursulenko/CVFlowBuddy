@@ -116,9 +116,10 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
   }
 }
 
-export async function generateAndQueueEmail({ companyName, jobTitle, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, emailMode = 'auto' }) {
+export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, emailMode = 'auto' }) {
   if (!apiKey) return false;
   
+  const titles = Array.isArray(jobTitles) ? jobTitles.join(' и ') : jobTitles;
   if (isDuplicateEmail(targetEmail, companyName)) {
     console.log(`⏩ Пропуск: Письмо для ${companyName} (${targetEmail}) уже существует в базе.`);
     return true; 
@@ -137,17 +138,20 @@ export async function generateAndQueueEmail({ companyName, jobTitle, jobDescript
 
   const prompt = `Write a professional, short and friendly cover letter/email for a job application.
     Company: ${companyName}
-    Job Title: ${jobTitle}
+    Job Titles: ${titles}
     Candidate Name: ${name}
     Candidate Position: ${cvData.position}
     Key Skills: ${skills}
     Experience Summary: ${experience}
     Short Job Description: ${shortJobDesc}
     
-    The letter should be in Russian, written from the first person. 
-    It should be professional yet concise. 
-    DO NOT include subject line, ONLY the body text.
-    Maximum length: 150 words.`;
+    CRITICAL INSTRUCTION:
+    1. The letter should be in Russian, written from the first person. 
+    2. It should be professional yet concise. 
+    3. If multiple Job Titles are provided, mention that you are interested in several positions.
+    4. MANDATORY: The signature must include your personal website: https://nikita-ursulenko.github.io/
+    5. DO NOT include subject line, ONLY the body text.
+    6. Maximum length: 180 words.`;
 
   while (attempt < maxRetries) {
     try {
