@@ -124,19 +124,30 @@ export async function generateAndQueueEmail({ companyName, jobTitle, jobDescript
     return true; 
   }
 
-  let cvText = '';
-  try {
-    const cvPath = cvData.serverFilePath || cvData.filePath;
-    if (cvPath) {
-      console.log(`📄 Извлекаем текст из CV для контекста: ${cvPath}`);
-      cvText = await readPdfText(cvPath);
-    }
-  } catch (e) {
-    console.warn('⚠️ Не удалось прочитать CV PDF, используем только имя:', e.message);
-  }
-
   const maxRetries = 3;
   let attempt = 0;
+
+  // ОПТИМИЗАЦИЯ: Используем уже проанализированные данные вместо чтения всего PDF
+  const name = `${cvData.firstName} ${cvData.lastName}`;
+  const skills = Array.isArray(cvData.skills) ? cvData.skills.slice(0, 8).join(', ') : '';
+  const experience = Array.isArray(cvData.experience) ? cvData.experience.slice(0, 3).join('; ') : '';
+  
+  // Короткое описание вакансии (1000 симв)
+  const shortJobDesc = jobDescription ? jobDescription.substring(0, 1000) : 'No description provided';
+
+  const prompt = `Write a professional, short and friendly cover letter/email for a job application.
+    Company: ${companyName}
+    Job Title: ${jobTitle}
+    Candidate Name: ${name}
+    Candidate Position: ${cvData.position}
+    Key Skills: ${skills}
+    Experience Summary: ${experience}
+    Short Job Description: ${shortJobDesc}
+    
+    The letter should be in Russian, written from the first person. 
+    It should be professional yet concise. 
+    DO NOT include subject line, ONLY the body text.
+    Maximum length: 150 words.`;
 
   while (attempt < maxRetries) {
     try {

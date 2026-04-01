@@ -32,15 +32,17 @@ export default function CV() {
       if (isAIAvailable) {
         try {
           setIsAnalyzing(true);
-          // Здесь вызываем реальный API через пропс или напрямую
+          const aiSettings = JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}');
           const response = await fetch('http://localhost:5050/api/agent/analyze-cv-general', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              filePath: file.name, // В реальности сервер возьмет путь из хранилища
-              apiKey: JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}').config?.apiKey
+              filePath: file.name,
+              apiKey: aiSettings.config?.apiKey,
+              model: aiSettings.config?.model,
+              provider: aiSettings.config?.provider
             })
           });
           

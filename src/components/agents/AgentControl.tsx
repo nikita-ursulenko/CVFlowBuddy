@@ -482,7 +482,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                 <div className="text-xs text-muted-foreground">
                   {agentStatus.state === 'running' ? (
                     <>
-                      <div>Следующий запуск: через {settings.intervalHours} час(ов)</div>
+                      <div>Следующий запуск: через {settings.intervalHours < 1 ? `${settings.intervalHours * 60} минут` : `${settings.intervalHours} час(ов)`}</div>
                       <div className="text-success font-medium mt-1">
                         ✅ Агент работает в фоновом режиме (headless)
                       </div>
@@ -540,7 +540,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                       toast.success('Автоматический агент запущен');
                     }}
                     disabled={!cvFile}
-                    className="flex-1 h-12 bg-success hover:bg-success/90 text-success-foreground"
+                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
                   >
                     <PlayCircle className="h-5 w-5 mr-2" />
                     Запустить агента
@@ -580,7 +580,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                         resumeAgent();
                         toast.success('Агент возобновлен');
                       }}
-                      className="flex-1 h-12 bg-success hover:bg-success/90 text-success-foreground"
+                      className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
                     >
                       <PlayCircle className="h-5 w-5 mr-2" />
                       Возобновить
@@ -711,7 +711,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
               {stats.todaySent >= settings.maxCVDaily && (
                 <div className="flex items-center gap-2 text-success text-sm font-medium">
                   <CheckCircle className="h-4 w-4" />
-                  Цель достигнута! Ожидание следующего запуска через {settings.intervalHours}ч
+                  Цель достигнута! Ожидание следующего запуска через {settings.intervalHours < 1 ? `${settings.intervalHours * 60}мин` : `${settings.intervalHours}ч`}
                 </div>
               )}
             </div>

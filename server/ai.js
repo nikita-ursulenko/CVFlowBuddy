@@ -49,8 +49,8 @@ export async function callAI({ provider, apiKey, model, messages, responseFormat
 /**
  * ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV
  */
-export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model, provider = 'groq') {
-  console.log(`🤖 ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV (${provider})...`);
+export async function analyzeCVGeneral(cvFilePath, apiKey, model, provider = 'groq') {
+  console.log(`🤖 ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV [${provider.toUpperCase()}]...`);
   
   try {
     let cvText = '';
@@ -61,8 +61,9 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model, provid
     }
 
     const prompt = `Ты эксперт по найму и карьере. Проанализируй это резюме и дай честную оценку.
+    Тебе нужно вернуть информацию СТРОГО в формате JSON.
     
-    ОТВЕТЬ СТРОГО В ПРЕДЛОЖЕННОМ JSON ФОРМАТЕ:
+    JSON ФОРМАТ:
     {
       "relevance": number (общий рейтинг 0-100),
       "matchScore": number (качество оформления 0-100),
@@ -82,7 +83,7 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model, provid
       apiKey,
       model,
       messages: [
-        { role: 'system', content: 'Ты карьерный консультант. Отвечай только валидным JSON на русском языке.' },
+        { role: 'system', content: 'Ты карьерный консультант. Твой ответ должен содержать ТОЛЬКО валидный JSON объект на русском языке. Никаких пояснений до или после JSON.' },
         { role: 'user', content: prompt }
       ],
       temperature: 0.3,
@@ -94,7 +95,9 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model, provid
       import('./storage.js').then(m => m.saveGroqStatusFromHeaders(aiResult.headers));
     }
 
-    return JSON.parse(aiResult.content || '{}');
+    // Очистка текста от возможных markdown-оберток (```json ...)
+    const cleanJson = aiResult.content.trim().replace(/```json\s*|```/g, '');
+    return JSON.parse(cleanJson || '{}');
   } catch (error) {
     console.error('❌ Ошибка анализа CV:', error);
     // Если ошибка 429 - сохраняем статус паузы (только для Groq)
@@ -108,8 +111,8 @@ export async function analyzeCVGeneralWithGroq(cvFilePath, apiKey, model, provid
 /**
  * ПОЛНЫЙ АНАЛИЗ CV ДЛЯ ИЗВЛЕЧЕНИЯ ДАННЫХ
  */
-export async function analyzeCVWithGroq(cvFilePath, apiKey, model, provider = 'groq') {
-  console.log(`🤖 НАЧИНАЕМ АНАЛИЗ CV С ПОМОЩЬЮ ${provider.toUpperCase()} AI...`);
+export async function analyzeCV(cvFilePath, apiKey, model, provider = 'groq') {
+  console.log(`🤖 НАЧИНАЕМ АНАЛИЗ CV [${provider.toUpperCase()}]...`);
   
   if (!fs.existsSync(cvFilePath)) {
     throw new Error(`❌ Файл CV не найден: ${cvFilePath}`);
@@ -136,16 +139,15 @@ export async function analyzeCVWithGroq(cvFilePath, apiKey, model, provider = 'g
         {
           role: 'system',
           content: `Ты эксперт по анализу резюме. 
-Извлеки из резюме ПОЛНУЮ информацию:
+Твоя задача — извлечь данные и вернуть их ТОЛЬКО в формате JSON. Никакого лишнего текста.
 ОБЯЗАТЕЛЬНЫЕ ПОЛЯ:
 1. firstName, 2. lastName, 3. position, 4. phone, 5. email
 ДОПОЛНИТЕЛЬНЫЕ ПОЛЯ:
-6. skills (array), 7. experience (array), 8. education (string), 9. languages (array), 10. summary (string)
-Отвечай ТОЛЬКО валидным JSON.`
+6. skills (array), 7. experience (array), 8. education (string), 9. languages (array), 10. summary (string)`
         },
         {
           role: 'user',
-          content: `Проанализируй это резюме:\n\n${cleanedText.substring(0, 15000)}`
+          content: `Проанализируй это резюме и верни JSON объект:\n\n${cleanedText.substring(0, 15000)}`
         }
       ],
       temperature: 0.2,

@@ -5,7 +5,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { PATHS } from './constants.js';
-import { analyzeCVWithGroq, analyzeCVGeneralWithGroq } from './ai.js';
+import { analyzeCV, analyzeCVGeneral } from './ai.js';
 import { SimpleLucruAgent } from './agent.js';
 import { openMailClient } from './email.js';
 import { 
@@ -30,15 +30,24 @@ app.use(express.json());
 // Настройка multer для загрузки CV файлов
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.dirname(PATHS.uploads);
+    const uploadDir = PATHS.uploads; // Исправлено: теперь сохраняем прямо в uploads
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    // Очистка папки перед новой загрузкой, чтобы всегда был только 1 файл
+    try {
+      const files = fs.readdirSync(uploadDir);
+      for (const f of files) {
+        if (f.startsWith('cv-')) fs.unlinkSync(path.join(uploadDir, f));
+      }
+    } catch (e) {
+      console.error('Ошибка очистки uploads:', e.message);
     }
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'cv-' + uniqueSuffix + path.extname(file.originalname));
+    // Фиксированное имя для предотвращения накопления файлов
+    cb(null, 'cv-current' + path.extname(file.originalname).toLowerCase());
   }
 });
 
@@ -164,10 +173,29 @@ app.post('/api/agent/upload-cv', upload.single('cv'), async (req, res) => {
 // Analyze CV
 app.post('/api/agent/analyze-cv', async (req, res) => {
   try {
-    const { filePath, apiKey, model, provider } = req.body;
+    let { filePath, apiKey, model, provider } = req.body;
     if (!filePath || !apiKey) return res.status(400).json({ success: false, message: 'File/API key required' });
     
-    const cvData = await analyzeCVWithGroq(filePath, apiKey, model, provider);
+    // ПРОВЕРКА ПУТИ: Если файл не найден, пробуем найти его в папке uploads
+    if (!fs.existsSync(filePath)) {
+      const fileName = path.basename(filePath);
+      const ext = path.extname(fileName).toLowerCase();
+      
+      // 1. Пробуем оригинальное имя в uploads
+      let candidate = path.join(PATHS.uploads, fileName);
+      
+      // 2. Если нет, пробуем cv-current с тем же расширением
+      if (!fs.existsSync(candidate)) {
+        candidate = path.join(PATHS.uploads, `cv-current${ext}`);
+      }
+
+      if (fs.existsSync(candidate)) {
+        console.log(`ℹ️ Путь ${filePath} не найден, используем ${candidate}`);
+        filePath = candidate;
+      }
+    }
+
+    const cvData = await analyzeCV(filePath, apiKey, model, provider);
     res.json({ success: true, analysis: { ...cvData, serverFilePath: filePath } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -181,16 +209,25 @@ app.post('/api/agent/sync-cv', async (req, res) => {
     const agent = activeAgents.get(sessionId);
     if (!agent) return res.status(401).json({ success: false, message: 'Session not found' });
     
-    const fullPath = filePath || path.join(__dirname, 'uploads', fileName);
-    if (!fs.existsSync(fullPath)) return res.status(404).json({ success: false, message: 'CV not found' });
+    let fullPath = filePath || path.join(PATHS.uploads, fileName);
+    
+    // ПРОВЕРКА ПУТИ
+    if (!fs.existsSync(fullPath)) {
+      const fallbackPath = path.join(PATHS.uploads, path.basename(fullPath));
+      if (fs.existsSync(fallbackPath)) {
+        fullPath = fallbackPath;
+      } else {
+        return res.status(404).json({ success: false, message: `CV не найден: ${fullPath}` });
+      }
+    }
 
     if (!isBrowserActive(agent)) await agent.initialize();
     
     const cvExists = await agent.checkCVExists();
     if (cvExists) return res.json({ success: true, message: 'CV already exists' });
 
-    const cvData = await analyzeCVWithGroq(fullPath, apiKey, model, provider);
-    const result = await agent.uploadCVWithGroqController(fullPath, cvData, apiKey);
+    const cvData = await analyzeCV(fullPath, apiKey, model, provider);
+    const result = await agent.uploadCVWithAI(fullPath, cvData, apiKey, model, provider);
     
     res.json(result);
   } catch (error) {
@@ -250,8 +287,27 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
 // Analyze CV General (Job analysis)
 app.post('/api/agent/analyze-cv-general', async (req, res) => {
   try {
-    const { filePath, apiKey, model, provider } = req.body;
-    const analysis = await analyzeCVGeneralWithGroq(filePath, apiKey, model, provider);
+    let { filePath, apiKey, model, provider } = req.body;
+    
+    // ПРОВЕРКА ПУТИ: Если файл не найден, пробуем найти его в папке uploads
+    if (filePath && !fs.existsSync(filePath)) {
+      const fileName = path.basename(filePath);
+      const ext = path.extname(fileName).toLowerCase();
+      
+      // 1. Пробуем оригинальное имя
+      let candidate = path.join(PATHS.uploads, fileName);
+      
+      // 2. Если нет, пробуем cv-current с тем же расширением
+      if (!fs.existsSync(candidate)) {
+        candidate = path.join(PATHS.uploads, `cv-current${ext}`);
+      }
+
+      if (fs.existsSync(candidate)) {
+        filePath = candidate;
+      }
+    }
+
+    const analysis = await analyzeCVGeneral(filePath, apiKey, model, provider);
     res.json({ success: true, analysis });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

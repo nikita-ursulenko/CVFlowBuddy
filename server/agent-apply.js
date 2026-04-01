@@ -39,7 +39,7 @@ async function buildCompanyMap(vacancyRows) {
  * Нажимает кнопку «Скрыть» (Ascunde) после отправки CV.
  * Если не найдена — пробует AI fallback, потом закрывает модал.
  */
-async function hideVacancy(page, row, jobTitle, apiKey, findAndClickWithAI) {
+async function hideVacancy(page, row, jobTitle, apiKey, model, provider, findAndClickWithAI) {
   try {
     console.log(`👁️ Скрываем вакансию: ${jobTitle}`);
     await row.hover();
@@ -57,7 +57,7 @@ async function hideVacancy(page, row, jobTitle, apiKey, findAndClickWithAI) {
 
     if (!hideClicked && apiKey && findAndClickWithAI) {
       console.log('🤖 AI fallback для кнопки "Ascunde"');
-      hideClicked = await findAndClickWithAI(row, "Кнопка 'Скрыть' (Ascunde)", apiKey);
+      hideClicked = await findAndClickWithAI(row, "Кнопка 'Скрыть' (Ascunde)", apiKey, model, provider);
     }
 
     if (hideClicked) {
@@ -256,7 +256,15 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
             console.error('Ошибка сохранения статистики:', e.message);
           }
 
-          await hideVacancy(page, row, jobData.title, apiKey, agent.findAndClickWithAI?.bind(agent));
+          await hideVacancy(
+            page, 
+            row, 
+            jobData.title, 
+            apiKey, 
+            model, 
+            provider, 
+            agent.findAndClickWithAI?.bind(agent)
+          );
         } else {
           console.log(`⚠️ Не удалось нажать финальную кнопку отклика для: ${jobData.title}`);
           results.push({ job: jobData.title, status: 'failed_button' });

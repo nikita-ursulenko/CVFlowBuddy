@@ -25,7 +25,9 @@ import {
   Activity,
   Trash2,
   RefreshCw,
-  Zap
+  Zap,
+  ExternalLink,
+  TrendingUp
 } from 'lucide-react';
 import { AIConfig, AISettings as AISettingsType, AIProvider } from '../../types/ai';
 import { useAI } from '@/hooks/useAI';
@@ -199,7 +201,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
   } : null;
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
+    <Card className="w-full border-0 shadow-none bg-transparent">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -241,57 +243,18 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
         )}
 
         {/* Основные настройки */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Основные настройки
-          </h3>
+        {/* Основные настройки */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold flex items-center gap-3">
+              <Settings className="h-6 w-6 text-primary" />
+              Параметры провайдера
+            </h3>
+          </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="apiKey" className="flex items-center gap-2">
-                <Key className="h-4 w-4" />
-                {config.provider === 'groq' ? 'Groq API Key' : 
-                 config.provider === 'gemini' ? 'Google Gemini API Key' : 'OpenAI API Key'}
-              </Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder={config.provider === 'groq' ? 'gsk_...' : 
-                             config.provider === 'gemini' ? 'AIza...' : 'sk-...'}
-                value={config.apiKey}
-                onChange={(e) => {
-                  const newKey = e.target.value;
-                  setConfig(prev => ({ 
-                    ...prev, 
-                    apiKey: newKey,
-                    apiKeys: {
-                      ...(prev.apiKeys || {}),
-                      [prev.provider]: newKey
-                    }
-                  }));
-                }}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                {config.provider === 'groq' ? (
-                  <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    console.groq.com
-                  </a>
-                ) : config.provider === 'gemini' ? (
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    aistudio.google.com
-                  </a>
-                ) : (
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    platform.openai.com
-                  </a>
-                )}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="provider">Провайдер AI</Label>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border/50">
+              <Label htmlFor="provider" className="text-sm font-semibold">Провайдер AI</Label>
               <Select 
                 value={config.provider} 
                 onValueChange={(value: AIProvider) => {
@@ -305,7 +268,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   }));
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-background border-border/60 hover:border-primary/50 transition-colors">
                   <SelectValue placeholder="Выберите провайдера" />
                 </SelectTrigger>
                 <SelectContent>
@@ -329,21 +292,21 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground italic px-1">
                 {config.provider === 'groq' 
-                  ? 'Groq - быстрый и бесплатный AI с лимитами'
-                  : 'OpenAI - качественный, но платный сервис'
+                  ? 'Groq Cloud - лучший выбор для скорости'
+                  : 'OpenAI - эталон качества GPT-4'
                 }
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="model">Модель</Label>
+            <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border/50">
+              <Label htmlFor="model" className="text-sm font-semibold">Модель</Label>
               <Select 
                 value={config.model} 
                 onValueChange={(value: any) => setConfig(prev => ({ ...prev, model: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-background border-border/60 hover:border-primary/50 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -363,20 +326,68 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                   )}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground italic px-1">
                 {config.provider === 'groq' 
-                  ? 'Llama 3.3 70B Versatile - единственная актуальная модель'
+                  ? 'Llama 3.3 70B - одна из мощнейших открытых моделей'
                   : config.provider === 'gemini'
                   ? 'Gemini 3 Flash - флагманская скоростная модель 2026 года'
-                  : 'GPT-4 Turbo дороже, но качественнее'
+                  : 'GPT-4 Turbo - максимальная точность'
                 }
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="maxTokens">Максимум токенов</Label>
+          <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border/50">
+            <Label htmlFor="apiKey" className="flex items-center gap-2 text-sm font-semibold">
+              <Key className="h-4 w-4 text-primary" />
+              {config.provider === 'groq' ? 'Groq API Key' : 
+               config.provider === 'gemini' ? 'Google Gemini API Key' : 'OpenAI API Key'}
+            </Label>
+            <div className="relative group">
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder={config.provider === 'groq' ? 'gsk_...' : 
+                             config.provider === 'gemini' ? 'AIza...' : 'sk-...'}
+                value={config.apiKey}
+                onChange={(e) => {
+                  const newKey = e.target.value;
+                  setConfig(prev => ({ 
+                    ...prev, 
+                    apiKey: newKey,
+                    apiKeys: {
+                      ...(prev.apiKeys || {}),
+                      [prev.provider]: newKey
+                    }
+                  }));
+                }}
+                className="font-mono text-sm h-12 bg-background border-border/60 group-hover:border-primary/50 transition-colors pr-10"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 group-hover:text-primary/40 transition-colors">
+                <Key className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="text-muted-foreground">Держите ключ в секрете</span>
+              {config.provider === 'groq' ? (
+                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline flex items-center gap-1">
+                   API Console <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : config.provider === 'gemini' ? (
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline flex items-center gap-1">
+                   AI Studio <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:underline flex items-center gap-1">
+                   Dashboard <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border/50">
+              <Label htmlFor="maxTokens" className="text-sm font-semibold">Максимум токенов</Label>
               <Input
                 id="maxTokens"
                 type="number"
@@ -384,23 +395,27 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 max="4000"
                 value={config.maxTokens}
                 onChange={(e) => setConfig(prev => ({ ...prev, maxTokens: parseInt(e.target.value) }))}
+                className="h-12 bg-background border-border/60"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="temperature">Температура (0-1)</Label>
-              <Input
-                id="temperature"
-                type="number"
-                min="0"
-                max="1"
-                step="0.1"
-                value={config.temperature}
-                onChange={(e) => setConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Выше = более креативно, ниже = более точно
-              </p>
+            <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border/50">
+              <Label htmlFor="temperature" className="text-sm font-semibold">Температура (Креативность)</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="temperature"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={config.temperature}
+                  onChange={(e) => setConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                  className="h-12 w-24 bg-background border-border/60"
+                />
+                <div className="flex-1 text-xs text-muted-foreground italic">
+                  {config.temperature >= 0.7 ? "Высокая: подходит для писем и креатива" : "Низкая: для точного анализа и кода"}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -414,30 +429,53 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 <Activity className="h-5 w-5" />
                 Статистика использования
               </h3>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">
-                    ${usageStats.totalCost}
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative group overflow-hidden bg-blue-50/50 dark:bg-blue-500/5 p-5 rounded-2xl border border-blue-200/50 dark:border-blue-500/20 hover:shadow-lg transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
+                    <TrendingUp className="h-8 w-8 text-blue-600" />
                   </div>
-                  <div className="text-sm text-muted-foreground">Общая стоимость</div>
+                  <div className="relative">
+                    <div className="text-2xl font-bold text-blue-600">
+                      ${usageStats.totalCost}
+                    </div>
+                    <div className="text-[11px] font-semibold text-blue-500/80 uppercase tracking-wider">Общая стоимость</div>
+                  </div>
                 </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
-                    {usageStats.totalRequests}
+
+                <div className="relative group overflow-hidden bg-green-50/50 dark:bg-green-500/5 p-5 rounded-2xl border border-green-200/50 dark:border-green-500/20 hover:shadow-lg transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
+                    <Bot className="h-8 w-8 text-green-600" />
                   </div>
-                  <div className="text-sm text-muted-foreground">Всего запросов</div>
+                  <div className="relative">
+                    <div className="text-2xl font-bold text-green-600">
+                      {usageStats.totalRequests}
+                    </div>
+                    <div className="text-[11px] font-semibold text-green-500/80 uppercase tracking-wider">Всего запросов</div>
+                  </div>
                 </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">
-                    ${usageStats.todayCost}
+
+                <div className="relative group overflow-hidden bg-orange-50/50 dark:bg-orange-500/5 p-5 rounded-2xl border border-orange-200/50 dark:border-orange-500/20 hover:shadow-lg transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
+                    <Activity className="h-8 w-8 text-orange-600" />
                   </div>
-                  <div className="text-sm text-muted-foreground">Сегодня</div>
+                  <div className="relative">
+                    <div className="text-2xl font-bold text-orange-600">
+                      ${usageStats.todayCost}
+                    </div>
+                    <div className="text-[11px] font-semibold text-orange-500/80 uppercase tracking-wider">Затраты сегодня</div>
+                  </div>
                 </div>
-                <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {usageStats.todayRequests}
+
+                <div className="relative group overflow-hidden bg-purple-50/50 dark:bg-purple-500/5 p-5 rounded-2xl border border-purple-200/50 dark:border-purple-500/20 hover:shadow-lg transition-all duration-300">
+                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
+                    <RefreshCw className="h-8 w-8 text-purple-600" />
                   </div>
-                  <div className="text-sm text-muted-foreground">Запросов сегодня</div>
+                  <div className="relative">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {usageStats.todayRequests}
+                    </div>
+                    <div className="text-[11px] font-semibold text-purple-500/80 uppercase tracking-wider">Запросов сегодня</div>
+                  </div>
                 </div>
               </div>
             </div>

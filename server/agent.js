@@ -13,9 +13,9 @@
 
 import fs from 'fs';
 import { chromium } from 'playwright';
-import { createGroqClient } from './utils.js';
 import { PATHS } from './constants.js';
 import { autoApplyToJobs } from './agent-apply.js';
+import { callAI } from './ai.js';
 
 export class SimpleLucruAgent {
   constructor(config) {
@@ -171,7 +171,7 @@ export class SimpleLucruAgent {
     }
   }
 
-  async uploadCVWithGroqController(cvFilePath, cvData, apiKey) {
+  async uploadCVWithAI(cvFilePath, cvData, apiKey, model, provider = 'groq') {
     try {
       if (!fs.existsSync(cvFilePath)) throw new Error(`CV файл не найден: ${cvFilePath}`);
       await this.page.goto('https://lucru.md/ro/applicant/my-resumes', { timeout: 60000 });
@@ -179,18 +179,20 @@ export class SimpleLucruAgent {
       await this.page.waitForTimeout(3000);
 
       const pageText = await this.page.evaluate(() => document.body.innerText);
-      const groq = createGroqClient(apiKey);
+      
+      const aiResponse = await callAI({
+        provider,
+        apiKey,
+        model,
+        messages: [
+          { role: 'system', content: 'Отвечай только валидным JSON.' },
+          { role: 'user', content: `Есть ли уже загруженное CV на странице? Нужно ли загрузить новое?\nТЕКСТ: ${pageText.substring(0, 3000)}\nОТВЕТЬ JSON: { "hasCVAlready": boolean, "needsUpload": boolean }` }
+        ],
+        temperature: 0.1,
+        responseFormat: { type: "json_object" }
+      });
 
-      const decision = JSON.parse(
-        (await groq.chat.completions.create({
-          messages: [
-            { role: 'system', content: 'Отвечай только JSON.' },
-            { role: 'user', content: `Есть ли уже загруженное CV на странице? Нужно ли загрузить новое?\nТЕКСТ: ${pageText.substring(0, 3000)}\nОТВЕТЬ JSON: { "hasCVAlready": boolean, "needsUpload": boolean }` }
-          ],
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0.2
-        })).choices[0].message.content.replace(/```json\s*|```/g, '')
-      );
+      const decision = JSON.parse(aiResponse.content.replace(/```json\s*|```/g, ''));
 
       if (decision.hasCVAlready && !decision.needsUpload)
         return { success: true, message: 'CV уже загружен', alreadyExists: true };
@@ -245,8 +247,8 @@ export class SimpleLucruAgent {
   // AI-НАВИГАЦИЯ (вспомогательный метод)
   // ──────────────────────────────────────────────
 
-  async findAndClickWithAI(parentElement, elementDescription, groqApiKey) {
-    if (!groqApiKey) return false;
+  async findAndClickWithAI(parentElement, elementDescription, apiKey, model, provider = 'groq') {
+    if (!apiKey) return false;
     try {
       const html = await parentElement.evaluate(el => {
         const c = el.cloneNode(true);
@@ -254,15 +256,18 @@ export class SimpleLucruAgent {
         return c.innerHTML;
       });
 
-      const groq = createGroqClient(groqApiKey);
-      const prompt = `HTML snippet:\n\n${html.substring(0, 3000)}\n\nFind element: "${elementDescription}". Return ONLY a CSS selector. If not found, return exactly "NONE".`;
-
-      const res = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama-3.3-70b-versatile',
+      const aiResponse = await callAI({
+        provider,
+        apiKey,
+        model,
+        messages: [{ 
+          role: 'user', 
+          content: `HTML snippet:\n\n${html.substring(0, 3000)}\n\nFind element: "${elementDescription}". Return ONLY a CSS selector. If not found, return exactly "NONE". No explanations.` 
+        }],
         temperature: 0.1
       });
-      const selector = res.choices[0]?.message?.content?.trim();
+      
+      const selector = aiResponse.content?.trim();
 
       if (selector && selector !== 'NONE') {
         const el = await parentElement.$(selector.replace(/['"` ]/g, ''));

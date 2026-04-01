@@ -74,12 +74,13 @@ export const AgentSettingsDialog: React.FC<AgentSettingsProps> = ({
             </Label>
             <Select 
               value={formData.intervalHours.toString()} 
-              onValueChange={(value) => handleInputChange('intervalHours', parseInt(value))}
+              onValueChange={(value) => handleInputChange('intervalHours', parseFloat(value))}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="0.5">Раз в 30 минут</SelectItem>
                 <SelectItem value="1">Каждый час</SelectItem>
                 <SelectItem value="2">Каждые 2 часа</SelectItem>
                 <SelectItem value="3">Каждые 3 часа</SelectItem>

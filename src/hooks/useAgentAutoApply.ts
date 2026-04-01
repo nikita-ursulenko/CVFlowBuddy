@@ -39,13 +39,20 @@ export function useAgentAutoApply({
   const [isAutoApplying, setIsAutoApplying] = useState(false);
   const [autoApplyProgress, setAutoApplyProgress] = useState('');
 
-  /** Получить API ключ из localStorage */
-  const getApiKey = (): string => {
+  /** Получить настройки AI из localStorage */
+  const getAISettings = () => {
     try {
       const stored = localStorage.getItem('cvflow_ai_settings');
-      if (stored) return JSON.parse(stored)?.config?.apiKey || '';
+      if (stored) {
+        const settings = JSON.parse(stored);
+        return {
+          apiKey: settings?.config?.apiKey || '',
+          provider: settings?.config?.provider || 'groq',
+          model: settings?.config?.model || ''
+        };
+      }
     } catch {}
-    return '';
+    return { apiKey: '', provider: 'groq', model: '' };
   };
 
   /** Снять начальный счётчик отправок (для подсчёта прогресса сессии) */
@@ -114,25 +121,30 @@ export function useAgentAutoApply({
       maxJobs,
       minMatchScore: 70,
       headless: settings.headless ?? config?.settings?.headless ?? true,
-      apiKey: aiSystemSettings?.config?.apiKey || getApiKey(),
+      apiKey: aiSystemSettings?.config?.apiKey || getAISettings().apiKey,
       smtpConfig: generalSettings?.smtp,
       emailMode: generalSettings?.emailMode || 'auto'
     };
 
     // Авто-анализ CV если ещё не сделан
     if (!cvFile.aiAnalysis) {
-      const apiKey = getApiKey();
+      const { apiKey, provider, model } = getAISettings();
       if (!apiKey) {
-        toast.error('❌ Groq API ключ не настроен. Укажите его в разделе AI → Настройки');
+        toast.error('❌ API ключ не настроен. Укажите его в разделе AI → Настройки');
         return;
       }
-      toast.info('🤖 Запускаем AI анализ CV...');
+      toast.info(`🤖 Запускаем AI анализ CV [${provider.toUpperCase()}]...`);
       try {
         const base = `${window.location.protocol}//${window.location.hostname}:5050`;
         const r = await fetch(`${base}/api/agent/analyze-cv`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: cvFile.filePath, apiKey })
+          body: JSON.stringify({ 
+            filePath: cvFile.filePath, 
+            apiKey,
+            provider,
+            model
+          })
         });
         if (!r.ok) {
           const err = await r.json().catch(() => ({ message: 'Ошибка' }));
