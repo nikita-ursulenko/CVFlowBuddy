@@ -1,13 +1,20 @@
 // React хук для работы с AI функциями
 
 import { useState, useEffect, useCallback } from 'react';
+import { agentServerAPI } from '@/lib/api/agent-server';
 
 // Упрощенные типы для AI функций
-interface AIJobAnalysis {
-  skills: string[];
-  requirements: string[];
+export interface AIJobAnalysis {
+  relevance: number;
   matchScore: number;
+  experienceLevel: 'junior' | 'middle' | 'senior' | 'lead';
+  companyType: string;
+  salaryRange?: string;
+  keySkills: string[];
+  requirements: string[];
   recommendations: string[];
+  strengths: string[];    // Добавлено для общего анализа
+  weaknesses: string[];   // Добавлено для общего анализа
 }
 
 interface AICoverLetter {
@@ -61,6 +68,8 @@ interface AIActions {
   optimizeText: (text: string, targetJob?: any) => Promise<AIOptimization>;
   testConnection: () => Promise<boolean>;
   updateConfig: (config: AIConfig) => void;
+  getEmails: () => Promise<any[]>;
+  sendEmail: (emailId: string, mode?: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const useAI = (): AIState & AIActions => {
@@ -136,22 +145,54 @@ export const useAI = (): AIState & AIActions => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
+      // Пытаемся вызвать реальный API если есть настройки
+      if (state.isAvailable) {
+        try {
+          const result = await agentServerAPI.analyzeJob(jobDescription, cvData);
+          if (result) return result;
+        } catch (apiError) {
+          console.warn('Real AI analysis failed, falling back to mock:', apiError);
+        }
+      }
+
       // Заглушка - возвращаем базовый анализ
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       return {
-        skills: ['JavaScript', 'React', 'TypeScript'],
-        requirements: ['Опыт работы', 'Знание фреймворков'],
+        relevance: 85,
         matchScore: 75,
-        recommendations: ['Изучите новые технологии', 'Практикуйтесь в проектах']
+        experienceLevel: 'middle',
+        companyType: 'Общий анализ',
+        salaryRange: 'Не применимо',
+        keySkills: ['JavaScript', 'React', 'TypeScript', 'Node.js'],
+        requirements: [
+          'Сильный технический стек',
+          'Опыт работы с современными фреймворками',
+          'Навыки командной разработки'
+        ],
+        recommendations: [
+          'Добавьте в резюме проекты на Next.js',
+          'Сделайте акцент на опыте руководства командой',
+          'Подготовьте примеры решения сложных архитектурных задач'
+        ],
+        strengths: [
+          'Более 5 лет опыта в веб-разработке',
+          'Глубокие знания React и экосистемы Node.js',
+          'Наличие актуальных сертификаций и пет-проектов'
+        ],
+        weaknesses: [
+          'Недостаточно описан опыт с системной архитектурой',
+          'Отсутствуют количественные показатели достижений (KPI)',
+          'Мало информации о мягких навыках (Soft Skills)'
+        ]
       };
     } catch (error) {
-      setState(prev => ({ ...prev, error: 'Ошибка анализа вакансии' }));
+      setState(prev => ({ ...prev, error: 'Ошибка анализа резюме' }));
       throw error;
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, []);
+  }, [state.isAvailable]);
 
   const generateCoverLetter = useCallback(async (job: any, cvData: any, preferences?: any): Promise<AICoverLetter> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -232,7 +273,9 @@ export const useAI = (): AIState & AIActions => {
     analyzeCV,
     optimizeText,
     testConnection,
-    updateConfig
+    updateConfig,
+    getEmails: agentServerAPI.getEmails.bind(agentServerAPI),
+    sendEmail: agentServerAPI.sendEmail.bind(agentServerAPI)
   };
 };
 

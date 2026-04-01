@@ -16,12 +16,12 @@ import {
   Clock,
   AlertCircle,
   CheckCircle,
+  XCircle,
   RefreshCw,
   Star,
   Lightbulb
 } from 'lucide-react';
-import { AIJobAnalysis } from '@/types/ai';
-import { useAI } from '@/hooks/useAI';
+import { useAI, AIJobAnalysis } from '@/hooks/useAI';
 import { toast } from 'sonner';
 
 interface JobAnalysisProps {
@@ -103,10 +103,10 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            AI Анализ вакансии
+            AI Анализ Резюме
           </CardTitle>
           <CardDescription>
-            Анализ требований и соответствия с помощью ChatGPT
+            Общий анализ вашего CV с помощью AI Groq
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -128,10 +128,10 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
-              AI Анализ вакансии
+              AI Анализ Резюме
             </CardTitle>
             <CardDescription>
-              {jobTitle && company ? `${jobTitle} в ${company}` : 'Анализ требований и соответствия'}
+              {jobTitle && company ? `${jobTitle} в ${company}` : 'Общий анализ и рекомендации по резюме'}
             </CardDescription>
           </div>
           <Button 
@@ -171,7 +171,7 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Релевантность</span>
+                  <span className="text-sm font-medium">Общий рейтинг</span>
                   <span className={`text-lg font-bold ${getRelevanceColor(analysis.relevance)}`}>
                     {analysis.relevance}%
                   </span>
@@ -181,7 +181,7 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Соответствие CV</span>
+                  <span className="text-sm font-medium">Качество контента</span>
                   <span className={`text-lg font-bold ${getRelevanceColor(analysis.matchScore)}`}>
                     {analysis.matchScore}%
                   </span>
@@ -238,19 +238,36 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
               </div>
             </div>
 
-            {/* Требования */}
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Основные требования
-              </h4>
-              <div className="space-y-2">
-                {analysis.requirements.map((requirement, index) => (
-                  <div key={index} className="flex items-start gap-2 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>{requirement}</span>
-                  </div>
-                ))}
+            {/* Сильные и слабые стороны */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2 text-green-700">
+                  <CheckCircle className="h-4 w-4" />
+                  Сильные стороны
+                </h4>
+                <div className="space-y-2">
+                  {analysis.strengths?.map((strength, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span>{strength}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2 text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  Зоны роста
+                </h4>
+                <div className="space-y-2">
+                  {analysis.weaknesses?.map((weakness, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <span>{weakness}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -293,15 +310,14 @@ export const JobAnalysis: React.FC<JobAnalysisProps> = ({
             </div>
           </div>
         ) : (
-          /* Заставка для первого анализа */
           <div className="text-center py-8">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mx-auto mb-4">
               <Brain className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Анализ вакансии</h3>
+            <h3 className="text-lg font-semibold mb-2">AI Анализ Резюме</h3>
             <p className="text-muted-foreground mb-4">
-              Нажмите "Анализировать" для получения детального анализа требований, 
-              соответствия и рекомендаций по улучшению CV
+              Нажмите "Анализировать" для получения детального разбора вашего резюме: 
+              сильные стороны, ошибки и персональные рекомендации
             </p>
             <Button 
               onClick={handleAnalyze}

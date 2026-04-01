@@ -7,7 +7,6 @@ import { Upload, FileText, Eye, Trash2, Download, Brain, Bot, Search, RefreshCw,
 import { JobAnalysis } from "@/components/ai/JobAnalysis";
 import { CoverLetterGenerator } from "@/components/ai/CoverLetterGenerator";
 import { CVUpload } from "@/components/cv/CVUpload";
-import { JobSearch } from "@/components/jobs/JobSearch";
 import { CVSync } from "@/components/cv/CVSync";
 import { useCV } from "@/hooks/useCV";
 import { useAI } from "@/hooks/useAI";
@@ -143,7 +142,7 @@ export default function CV() {
 
       {/* Tabs */}
       <Tabs defaultValue="files" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="files" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Файлы
@@ -152,17 +151,9 @@ export default function CV() {
             <RefreshCw className="h-4 w-4" />
             Синхронизация
           </TabsTrigger>
-          <TabsTrigger value="jobs" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Поиск вакансий
-          </TabsTrigger>
           <TabsTrigger value="analysis" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
-            Анализ
-          </TabsTrigger>
-          <TabsTrigger value="letters" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Письма
+            AI Анализ
           </TabsTrigger>
         </TabsList>
 
@@ -284,30 +275,14 @@ export default function CV() {
           />
         </TabsContent>
 
-        <TabsContent value="jobs" className="space-y-4">
-          <JobSearch 
-            cvData={demoCVData}
-            onJobSelect={(job) => {
-              console.log('Выбрана вакансия:', job.title);
-            }}
-          />
-        </TabsContent>
 
         <TabsContent value="analysis" className="space-y-4">
           <JobAnalysis 
-            jobDescription={demoJob.description}
-            jobTitle={demoJob.title}
-            company={demoJob.company}
+            jobDescription="Общий анализ резюме для оценки сильных сторон и зон роста."
             cvData={demoCVData}
           />
         </TabsContent>
 
-        <TabsContent value="letters" className="space-y-4">
-          <CoverLetterGenerator 
-            job={demoJob}
-            cvData={demoCVData}
-          />
-        </TabsContent>
       </Tabs>
     </div>
   );

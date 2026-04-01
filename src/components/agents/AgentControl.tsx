@@ -13,6 +13,8 @@ import { Play, AlertCircle, CheckCircle, Layers, Zap, FileText, ChevronDown, Che
 import { toast } from 'sonner';
 import { LoginDialog } from './LoginDialog';
 import { AgentSettingsDialog } from './AgentSettings';
+import { useSettings } from '@/hooks/useSettings';
+import { useAI } from '@/hooks/useAI';
 
 interface AgentStatus {
   isRunning: boolean;
@@ -49,6 +51,9 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     updateStats,
     resetStats
   } = useAgentState();
+
+  const { settings: generalSettings } = useSettings();
+  const { settings: aiSystemSettings } = useAI();
 
   const [status, setStatus] = useState<AgentStatus>({
     isRunning: false,
@@ -289,8 +294,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
   };
 
   // Запуск автоматической отправки на вакансии с мониторингом прогресса
-  const handleAutoApply = async () => {
-    console.log('🔍 Отладка автоотправки:');
+  const handleAutoApply = async (manualMaxJobs?: number) => {
+    console.log('🚀 handleAutoApply вызван');
     console.log('   isLoggedIn:', isLoggedIn);
     console.log('   localSessionId:', localSessionId);
     console.log('   cvFile:', cvFile);
@@ -359,7 +364,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
           setIsAutoApplying(true);
           setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
 
-          const maxJobs = settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
+          const maxJobs = manualMaxJobs || settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
           console.log('📊 Разовая отправка: maxJobs =', maxJobs);
           
           // Запоминаем начальное количество для отслеживания прогресса
@@ -382,13 +387,23 @@ export const AgentControl: React.FC<AgentControlProps> = ({
             { 
               maxJobs: maxJobs,
               minMatchScore: 70,
-              headless: settings.headless ?? config?.settings?.headless ?? true
+              headless: settings.headless ?? config?.settings?.headless ?? true,
+              apiKey: aiSystemSettings?.config?.apiKey,
+              smtpConfig: generalSettings.smtp,
+              emailMode: generalSettings.emailMode || 'auto'
             }
           );
 
           if (result.success) {
-            setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
-            toast.success(`✅ ${result.message}`);
+            if (result.appliedCount !== undefined) {
+              setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
+            } else {
+              setAutoApplyProgress('Задача запущена в фоновом режиме...');
+              // В этом случае мониторинг прогресса продолжится через progressMonitor (если он запущен)
+              // Но в этом блоке (if !aiAnalysis) progressMonitor НЕ был запущен. 
+              // Добавим простейший мониторинг для этого случая или просто уведомление.
+            }
+            toast.success(`✅ ${result.message || 'Задача запущена'}`);
             await loadStatsFromServer();
           } else {
             if (result.message && result.message.includes('Выполните вход')) {
@@ -419,8 +434,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     setIsAutoApplying(true);
     setAutoApplyProgress('Запуск автоотправки CV на IT вакансии...');
 
-    // Приоритет: 1) settings из AgentState, 2) config, 3) 20 по умолчанию
-    const maxJobs = settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
+    const maxJobs = manualMaxJobs || settings.maxCVDaily || config?.settings?.maxCVDaily || 20;
     console.log('📊 Разовая отправка: maxJobs =', maxJobs, '(из settings.maxCVDaily =', settings.maxCVDaily, ')');
     
     // Запоминаем начальное количество для отслеживания прогресса ЭТОЙ сессии
@@ -523,15 +537,24 @@ export const AgentControl: React.FC<AgentControlProps> = ({
         { 
           maxJobs: maxJobs,
           minMatchScore: 70,
-          headless: settings.headless ?? config?.settings?.headless ?? true
+          headless: settings.headless ?? config?.settings?.headless ?? true,
+          apiKey: aiSystemSettings?.config?.apiKey,
+          smtpConfig: generalSettings.smtp,
+          emailMode: generalSettings.emailMode || 'auto'
         }
       );
 
-      isCompleted = true;
-      clearInterval(progressMonitor);
-
       if (result.success) {
-        setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
+        if (result.appliedCount !== undefined) {
+          isCompleted = true;
+          clearInterval(progressMonitor);
+          setAutoApplyProgress(`Завершено! Отправлено: ${result.appliedCount}/${result.total}`);
+        } else {
+          // Если вернулся ответ о фоновом запуске - не сбрасываем прогресс, а ждем monitor
+          setAutoApplyProgress('Задача выполняется в фоне...');
+          // Мы НЕ останавливаем интервал, чтобы прогресс продолжал поллиться
+          return; 
+        }
         toast.success(`✅ ${result.message}`);
         
         // Обновляем статистику
@@ -565,6 +588,20 @@ export const AgentControl: React.FC<AgentControlProps> = ({
         setIsAutoApplying(false);
         setAutoApplyProgress('');
       }, 5000);
+    }
+  };
+
+  const handleCloseBrowser = async () => {
+    if (!localSessionId) return;
+    try {
+      const response = await agentServerAPI.closeAgent(localSessionId);
+      if (response.success) {
+        toast.success(response.message || 'Браузер агента закрыт');
+      } else {
+        toast.error(response.message || 'Ошибка: браузер не закрыт');
+      }
+    } catch (error) {
+      toast.error('Произошла ошибка при закрытии браузера');
     }
   };
 
@@ -849,17 +886,26 @@ export const AgentControl: React.FC<AgentControlProps> = ({
 
                 {/* Кнопка разовой отправки */}
                 <Button
-                  onClick={handleAutoApply}
+                  onClick={() => handleAutoApply(1)}
                   disabled={!cvFile || isAutoApplying}
                   className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Zap className="h-5 w-5 mr-2" />
-                  {isAutoApplying ? 'Отправка...' : 'Разовая отправка'}
+                  {isAutoApplying ? 'Отправка...' : 'Разовая отправка (1)'}
                 </Button>
               </div>
 
-              {/* Кнопка выхода */}
-              <div className="flex justify-end">
+              {/* Кнопки выхода и закрытия браузера */}
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={handleCloseBrowser}
+                  variant="outline"
+                  size="sm"
+                  className="h-10 px-4 border-gray-300 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-600"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Закрыть браузер
+                </Button>
                 <Button
                   onClick={() => {
                     setLoggedIn(false);

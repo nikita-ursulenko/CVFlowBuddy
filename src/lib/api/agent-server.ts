@@ -184,7 +184,15 @@ export class AgentServerAPI {
     }
   }
 
-  async autoApplyToJobs(sessionId: string, cvData: any, options?: { maxJobs?: number; minMatchScore?: number; headless?: boolean; isScheduled?: boolean }): Promise<{
+  async autoApplyToJobs(sessionId: string, cvData: any, options?: { 
+    maxJobs?: number; 
+    minMatchScore?: number; 
+    headless?: boolean; 
+    isScheduled?: boolean;
+    apiKey?: string;
+    smtpConfig?: any;
+    emailMode?: 'auto' | 'manual';
+  }): Promise<{
     success: boolean;
     message: string;
     appliedCount?: number;
@@ -203,10 +211,13 @@ export class AgentServerAPI {
           cvData,
           maxJobs: options?.maxJobs || 10,
           minMatchScore: options?.minMatchScore || 70,
-          headless: options?.headless ?? true, // По умолчанию headless режим
-          isScheduled: options?.isScheduled ?? false // Флаг автоматического запуска
+          headless: options?.headless ?? true,
+          isScheduled: options?.isScheduled ?? false,
+          apiKey: options?.apiKey,
+          smtpConfig: options?.smtpConfig,
+          emailMode: options?.emailMode || 'auto'
         }),
-        signal: AbortSignal.timeout(600000) // 10 минут для автоотправки (достаточно для 20+ вакансий)
+        signal: AbortSignal.timeout(600000)
       });
 
       const data = await response.json();
@@ -269,6 +280,56 @@ export class AgentServerAPI {
         browserActive: false,
         message: 'Не удалось проверить статус агента'
       };
+    }
+  }
+
+  async analyzeJob(jobDescription: string, cvData?: any): Promise<any> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/analyze-cv-general`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filePath: cvData?.filePath,
+          apiKey: localStorage.getItem('cvflow_ai_settings') ? 
+            JSON.parse(localStorage.getItem('cvflow_ai_settings')!).config.apiKey : ''
+        }),
+        signal: AbortSignal.timeout(this.config.timeout)
+      });
+
+      const data = await response.json();
+      return data.analysis;
+    } catch (error) {
+      console.error('Agent server analyze-job error:', error);
+      throw error;
+    }
+  }
+
+  async getEmails(): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/emails`);
+      const data = await response.json();
+      return data.emails || [];
+    } catch (error) {
+      console.error('Agent server getEmails error:', error);
+      return [];
+    }
+  }
+
+  async sendEmail(emailId: string, mode?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/emails/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emailId, mode })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Agent server sendEmail error:', error);
+      return { success: false, message: 'Ошибка при отправке письма' };
     }
   }
 }

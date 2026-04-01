@@ -134,9 +134,12 @@ export const useAgentScheduler = ({
         aiAnalysis,
         { 
           maxJobs: settings.maxCVDaily,  // Используем настройку из агента
-          minMatchScore: 0,              // Отправляем на все вакансии
-          headless: settings.headless,   // Фоновый режим
-          isScheduled: true              // Флаг автоматического запуска
+          minMatchScore: 0,
+          headless: settings.headless,
+          isScheduled: true,
+          apiKey: JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}').config?.apiKey,
+          smtpConfig: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').smtp,
+          emailMode: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').emailMode || 'auto'
         }
       );
 

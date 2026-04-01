@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AISettings } from "@/components/ai/AISettings";
-import { Bot, Settings as SettingsIcon, User, Monitor } from "lucide-react";
+import { EmailSettings } from "@/components/settings/EmailSettings";
+import { Bot, Settings as SettingsIcon, User, Monitor, Mail } from "lucide-react";
 
 export default function Settings() {
   return (
@@ -26,7 +27,7 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs defaultValue="agent" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="agent" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
             Агент
@@ -34,6 +35,10 @@ export default function Settings() {
           <TabsTrigger value="ai" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI
+          </TabsTrigger>
+          <TabsTrigger value="email" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Email
           </TabsTrigger>
           <TabsTrigger value="system" className="flex items-center gap-2">
             <Monitor className="h-4 w-4" />
@@ -223,6 +228,10 @@ export default function Settings() {
               </div>
             </div>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="email" className="space-y-4">
+          <EmailSettings />
         </TabsContent>
       </Tabs>
     </div>

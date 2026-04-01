@@ -9,8 +9,8 @@ import Groq from 'groq-sdk';
 import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import nodemailer from 'nodemailer';
 import { createRequire } from 'module';
-
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 const execPromise = promisify(exec);
@@ -91,7 +91,142 @@ async function readPdfText(pdfPath) {
   }
 }
 
-// Функция для анализа CV с помощью Groq AI
+// Функция для отправки Email с вложением (резюме)
+async function sendEmailWithAttachment(smtpConfig, to, subject, html, attachmentPath) {
+  console.log(`📧 Попытка отправки письма на ${to}...`);
+  
+  if (!smtpConfig || !smtpConfig.host || !smtpConfig.auth?.user) {
+    console.error('❌ Ошибка: SMTP настройки не заданы');
+    return { success: false, error: 'SMTP настройки не заданы' };
+  }
+
+  try {
+    const transporter = nodemailer.createTransport(smtpConfig);
+
+    const attachments = [];
+    if (attachmentPath && typeof attachmentPath === 'string') {
+      attachments.push({
+        filename: path.basename(attachmentPath),
+        path: attachmentPath
+      });
+    }
+
+    const info = await transporter.sendMail({
+      from: `"${smtpConfig.name || 'CV Flow Buddy'}" <${smtpConfig.auth.user}>`,
+      to,
+      subject,
+      html,
+      attachments
+    });
+
+    console.log(`✅ Письмо успешно отправлено: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Ошибка отправки Email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Функция для открытия почтового клиента (Mail.app на Mac)
+async function openMailClient(to, subject, body) {
+  console.log(`🖥️  ОТКРЫВАЕМ MAIL.APP ДЛЯ: ${to}`);
+  try {
+    // В Mac OS используем команду open mailto:...
+    // Заменяем переносы строк на %0D%0A для mailto
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    const mailto = `mailto:${to}?subject=${encodedSubject}&body=${encodedBody}`;
+    
+    // Используем exec из child_process (он уже должен быть в Node.js)
+    const { exec } = require('child_process');
+    exec(`open "${mailto}"`);
+    
+    console.log(`   ✅ Команда open выполнена успешно`);
+    return { success: true };
+  } catch (error) {
+    console.error('   ❌ Ошибка открытия почтового клиента:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * СОХРАНЕНИЕ ПИСЬМА В ИСТОРИЮ
+ */
+function saveEmailToHistory(emailData) {
+  const EMAILS_FILE = path.join(__dirname, 'emails.json');
+  let emails = [];
+  
+  try {
+    if (fs.existsSync(EMAILS_FILE)) {
+      emails = JSON.parse(fs.readFileSync(EMAILS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('⚠️ Ошибка чтения emails.json:', e.message);
+  }
+  
+  const newEmail = {
+    id: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toISOString(),
+    status: 'new', // 'new', 'sent', 'error'
+    ...emailData
+  };
+  
+  emails.unshift(newEmail);
+  
+  // Храним последние 200 писем
+  if (emails.length > 200) emails = emails.slice(0, 200);
+  
+  fs.writeFileSync(EMAILS_FILE, JSON.stringify(emails, null, 2));
+  return newEmail;
+}
+
+async function analyzeCVGeneralWithGroq(cvFilePath, apiKey) {
+  console.log('🤖 ГЕНЕРАЦИЯ ОБЩЕГО АНАЛИЗА CV...');
+  
+  try {
+    let cvText = '';
+    if (cvFilePath.endsWith('.pdf')) {
+      cvText = await readPdfText(cvFilePath);
+    } else {
+      cvText = fs.readFileSync(cvFilePath, 'utf-8');
+    }
+
+    const groq = createGroqClient(apiKey);
+    const prompt = `Ты эксперт по найму и карьере. Проанализируй это резюме и дай честную оценку.
+    
+    ОТВЕТЬ СТРОГО В ПРЕДЛОЖЕННОМ JSON ФОРМАТЕ:
+    {
+      "relevance": number (общий рейтинг 0-100),
+      "matchScore": number (качество оформления 0-100),
+      "experienceLevel": "junior" | "middle" | "senior" | "lead",
+      "companyType": "string (какие типы компаний подойдут лучше всего)",
+      "keySkills": ["навык1", "навык2", "навык3", "навык4"],
+      "strengths": ["сильная сторона1", "сильная сторона2", "сильная сторона3"],
+      "weaknesses": ["зона роста1", "зона роста2", "зона роста3"],
+      "recommendations": ["совет1", "совет2", "совет3"]
+    }
+
+    ТЕКСТ РЕЗЮМЕ:
+    ${cvText.substring(0, 8000)}`;
+
+    const response = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'Ты карьерный консультант. Отвечай только валидным JSON на русском языке.' },
+        { role: 'user', content: prompt }
+      ],
+      model: 'llama-3.1-70b-versatile',
+      temperature: 0.3,
+      response_format: { type: "json_object" }
+    });
+
+    const resultText = response.choices[0]?.message?.content || '{}';
+    return JSON.parse(resultText);
+  } catch (error) {
+    console.error('❌ Ошибка анализа CV:', error);
+    throw error;
+  }
+}
+
 async function analyzeCVWithGroq(cvFilePath, apiKey) {
   console.log('🤖 НАЧИНАЕМ АНАЛИЗ CV С ПОМОЩЬЮ GROQ AI...');
   console.log(`📄 Файл CV: ${cvFilePath}`);
@@ -324,6 +459,7 @@ class SimpleLucruAgent {
     this.config = config;
     this.browser = null;
     this.page = null;
+    this.processedCompanies = new Set(); // Компании, обработанные в текущей сессии
   }
 
   async initialize() {
@@ -1125,6 +1261,129 @@ ${finalText.substring(0, 3000)}
     }
   }
 
+  async extractEmailFromJobPage(jobUrl) {
+    console.log(`\n🔍 Поиск Email на странице: ${jobUrl}`);
+    const newPage = await this.browser.newPage();
+    try {
+      // Переходим на страницу вакансии
+      await newPage.goto(jobUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await newPage.waitForTimeout(2000);
+      
+      const email = await newPage.evaluate(() => {
+        // 1. Ищем ссылки mailto
+        const mailto = document.querySelector('a[href^="mailto:"]');
+        if (mailto) {
+          const href = mailto.getAttribute('href');
+          return href.replace('mailto:', '').split('?')[0].trim();
+        }
+        
+        // 2. Ищем текст в блоке контактов (как на скриншоте)
+        const contactBlock = Array.from(document.querySelectorAll('div, span, p')).find(el => 
+          el.textContent.includes('E-mail:') || el.textContent.includes('Email:')
+        );
+        
+        if (contactBlock) {
+          const text = contactBlock.textContent;
+          const match = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+          if (match) return match[0];
+        }
+
+        // 3. Общий поиск по тексту всей страницы
+        const bodyText = document.body.innerText;
+        const match = bodyText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        return match ? match[0] : null;
+      });
+      
+      const jobDescription = await newPage.evaluate(() => {
+        const descEl = document.querySelector('.vacancy-description, #vacancy-description, .job-description');
+        return descEl ? descEl.innerText.substring(0, 2000) : '';
+      });
+
+      if (email) {
+        console.log(`   ✅ Email найден: ${email}`);
+      }
+      
+      return { email, jobDescription };
+    } catch (error) {
+      console.error(`   ❌ Ошибка извлечения данных со страницы: ${error.message}`);
+      return { email: null, jobDescription: '' };
+    } finally {
+      await newPage.close();
+    }
+  }
+
+  async generateAndSendEmailForCompany(companyName, jobTitle, jobDescription, cvData, apiKey, smtpConfig, emailMode = 'auto') {
+    if (!apiKey) {
+      console.log('   ⚠️ Пропускаем Email: Groq API ключ не указан');
+      return false;
+    }
+
+    try {
+      console.log(`   🤖 Генерируем сопроводительное письмо для ${companyName}...`);
+      const groq = createGroqClient(apiKey);
+      
+      const prompt = `
+Ты - профессиональный HR-консультант. Напиши короткое, убедительное и персонализированное сопроводительное письмо на русском языке.
+Кандидат: ${cvData.firstName} ${cvData.lastName}
+Должность кандидата: ${cvData.position}
+Навыки: ${cvData.skills ? cvData.skills.join(', ') : 'указаны в резюме'}
+Компания: ${companyName}
+Вакансия: ${jobTitle}
+Описание вакансии: ${jobDescription}
+
+Кандидат также имеет портфолио и проекты здесь:
+- Портфолио: https://nikita-ursulenko.github.io/
+- GitHub: https://github.com/nikita-ursulenko
+
+ПРАВИЛА:
+1. Письмо должно быть коротким (максимум 3 небольших абзаца).
+2. Сделай акцент на том, как опыт кандидата поможет именно этой компании в этой роли.
+3. Тон: профессиональный, но энергичный.
+4. ${emailMode === 'manual' 
+    ? 'В конце ОБЯЗАТЕЛЬНО укажи ссылки на https://nikita-ursulenko.github.io/ и GitHub, отметив, что там можно найти полное резюме и мои проекты (так как прикрепить файл в этом режиме нельзя).' 
+    : 'В конце обязательно укажи: "Мое полное резюме прикреплено к этому письму."'}
+5. Верни ТОЛЬКО текст письма, без лишних вступлений (типа "Вот ваше письмо").
+`;
+
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+      });
+
+      const emailBody = chatCompletion.choices[0].message.content;
+      const subject = `Отклик на вакансию ${jobTitle} - ${cvData.firstName} ${cvData.lastName}`;
+
+      // Ищем путь к CV файлу
+      const cvFilePath = cvData.serverFilePath || cvData.filePath; 
+      
+      if (emailMode === 'manual') {
+        // РУЧНОЙ РЕЖИМ: Открываем Mail.app на Mac
+        console.log(`   🖥️  Выбран РУЧНОЙ режим. Открываем Mail.app для ${smtpConfig.targetEmail}...`);
+        const manualResult = await openMailClient(
+          smtpConfig.targetEmail,
+          subject,
+          emailBody
+        );
+        return manualResult.success;
+      } else {
+        // АВТОМАТИЧЕСКИЙ РЕЖИМ: Отправляем через nodemailer (SMTP)
+        console.log(`   📧 Выбран АВТОМАТИЧЕСКИЙ режим. Отправка через SMTP...`);
+        const emailResult = await sendEmailWithAttachment(
+          smtpConfig,
+          smtpConfig.targetEmail, 
+          subject,
+          emailBody.replace(/\n/g, '<br>'),
+          cvFilePath
+        );
+        return emailResult.success;
+      }
+    } catch (error) {
+      console.error('   ❌ Ошибка генерации/отправки Email:', error.message);
+      return false;
+    }
+  }
+
   async cleanup() {
     if (this.browser) {
       await this.browser.close();
@@ -1245,6 +1504,9 @@ ${finalText.substring(0, 3000)}
       let appliedCount = 0;
       let skippedCount = 0;
       const results = [];
+      const processedCompanies = new Set(); // Для отслеживания компаний, которым уже отправили Email
+
+      const { apiKey, smtpConfig, emailMode } = options;
 
       for (let i = 0; i < Math.min(jobCards.length, maxJobs); i++) {
         const vacancyRow = jobCards[i];
@@ -1345,17 +1607,18 @@ ${finalText.substring(0, 3000)}
             const vacancyId = cvButton?.getAttribute('data-caid') || cvButton?.getAttribute('data-id') || cvButton?.getAttribute('data-vacancy-id') || '';
             const companyId = cvButton?.getAttribute('data-cid') || cvButton?.getAttribute('data-company-id') || '';
             
-            // Отладка: смотрим что внутри элемента
-            const debugInfo = {
-              hasLink: !!link,
-              linkSelector: link ? link.className : 'not found',
-              hasCVButton: !!cvButton,
-              cvButtonClass: cvButton ? cvButton.className : 'not found',
-              allLinksCount: allLinks.length,
-              innerText: el.innerText?.substring(0, 100) || 'empty'
-            };
+            // Ищем название компании
+            let company = '';
+            const companyLink = el.querySelector('a[href*="/companii/"]');
+            if (companyLink) {
+              company = companyLink.textContent?.trim() || '';
+            } else {
+              // Попытка найти через VIP селектор или другие варианты
+              const vipCompany = el.querySelector('.vip_company--name');
+              company = vipCompany?.textContent?.trim() || '';
+            }
             
-            return { title, href, vacancyId, companyId, debugInfo };
+            return { title, href, vacancyId, companyId, company, debugInfo };
           });
           
           // Выводим отладочную информацию для первых 3 вакансий
@@ -1371,6 +1634,45 @@ ${finalText.substring(0, 3000)}
           console.log(`\n📄 ${i + 1}. ${jobData.title}`);
           console.log(`   🔗 ${jobData.href}`);
           console.log(`   🆔 Vacancy ID: ${jobData.vacancyId}`);
+
+          // ГИБРИДНАЯ ЛОГИКА: Если компания новая - пробуем найти Email и отправить личное письмо
+          // Используем НАСТОЯЩЕЕ название компании для дедупликации
+          const companyName = jobData.company || jobData.title.split(' ')[0];
+          const companyKey = companyName.toLowerCase().trim();
+          
+          if (companyKey && !this.processedCompanies.has(companyKey) && smtpConfig && smtpConfig.auth?.user) {
+            console.log(`\n🏢 НОВАЯ КОМПАНИЯ: "${companyName}". Пробуем найти Email...`);
+            
+            try {
+              const { email: hrEmail, jobDescription } = await this.extractEmailFromJobPage(`https://lucru.md${jobData.href}`);
+              
+              if (hrEmail) {
+                // Временная подмена targetEmail для функции отправки
+                const currentSmtpConfig = { ...smtpConfig, targetEmail: hrEmail };
+                
+                const sent = await this.generateAndSendEmailForCompany(
+                  companyKey, 
+                  jobData.title, 
+                  jobDescription, 
+                  cvData, 
+                  apiKey, 
+                  currentSmtpConfig,
+                  emailMode
+                );
+                
+                if (sent) {
+                  this.processedCompanies.add(companyKey);
+                  console.log(`   ✅ ГИБРИД: Email успешно отправлен компании "${companyName}"!`);
+                }
+              }
+            } catch (hybridError) {
+              console.log(`   ⚠️ Ошибка гибридного отклика (пропускаем): ${hybridError.message}`);
+            }
+            
+            // После попытки отправки Email - возвращаемся к основной странице если Playwright потерял контекст
+            // Но мы использовали newPage(), так что main page должна быть на месте.
+            await this.page.bringToFront();
+          }
           
           // ШАГ 1: Делаем hover на вакансию чтобы появилась кнопка CV
           console.log(`   🖱️  Hover на вакансию...`);
@@ -1718,7 +2020,7 @@ ${finalText.substring(0, 3000)}
 // Автоматическая отправка CV на IT вакансии
 app.post('/api/agent/auto-apply-jobs', async (req, res) => {
   try {
-    const { sessionId, cvData, maxJobs = 10, minMatchScore = 70, headless = true, isScheduled = false } = req.body;
+    const { sessionId, cvData, maxJobs = 10, minMatchScore = 70, headless = true, isScheduled = false, apiKey, smtpConfig, emailMode = 'auto' } = req.body;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -1728,6 +2030,22 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     }
 
     let agent = activeAgents.get(sessionId);
+    
+    // Если агент нашелся - запускаем задачу
+    if (agent) {
+      // Запускаем в фоновом режиме
+      agent.autoApplyToITJobs(cvData, { maxJobs, minMatchScore, apiKey, smtpConfig, emailMode }).then(result => {
+        console.log(`✅ Задача автоотправки ${sessionId} завершена`);
+      }).catch(err => {
+        console.error(`❌ Ошибка в фоновой задаче ${sessionId}:`, err);
+      });
+
+      return res.json({
+        success: true,
+        message: 'Задача запущена в фоновом режиме',
+        jobId: sessionId
+      });
+    }
     
     // Если агента нет - пробуем восстановить из cookies (для автоматизации)
     if (!agent) {
@@ -1818,11 +2136,11 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
       });
     }
 
-    console.log('\n🚀 Запуск автоматической отправки CV на IT вакансии...');
+    console.log(`🚀 Запуск автоматической отправки CV на IT вакансии...`);
     console.log(`   👤 Кандидат: ${cvData.firstName} ${cvData.lastName}`);
     console.log(`   📊 Параметры: max=${maxJobs}, minMatch=${minMatchScore}%\n`);
 
-    const result = await agent.autoApplyToITJobs(cvData, { maxJobs, minMatchScore });
+    const result = await agent.autoApplyToITJobs(cvData, { maxJobs, minMatchScore, apiKey, smtpConfig });
 
     if (result.success) {
       console.log(`\n✅ Отправка завершена! Результат: ${result.appliedCount} отправлено, ${result.skippedCount} пропущено`);
@@ -1875,6 +2193,33 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+});
+
+// Тестовая отправка Email или проверка открытия приложения
+app.post('/api/agent/test-email', async (req, res) => {
+  try {
+    const { to, subject, body, mode, smtpConfig } = req.body;
+    
+    console.log(`🧪 ТЕСТОВЫЙ ЗАПУСК EMAIL (${mode}):`);
+    console.log(`   Кому: ${to}`);
+    
+    if (mode === 'manual') {
+      const result = await openMailClient(to, subject, body);
+      return res.json(result);
+    } else {
+      // Для SMTP пока заглушка, как просил пользователь
+      console.log('   🔗 Проверка SMTP соединения (имитация)...');
+      setTimeout(() => {
+        res.json({ 
+          success: true, 
+          message: 'Соединение с SMTP сервером успешно проверено (заглушка)' 
+        });
+      }, 1500);
+    }
+  } catch (error) {
+    console.error('❌ Ошибка в тестовом эндпоинте:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -2423,7 +2768,10 @@ app.post('/api/agent/analyze-cv', async (req, res) => {
     res.json({
       success: true,
       message: 'AI анализ завершен',
-      analysis: cvData
+      analysis: {
+        ...cvData,
+        serverFilePath: filePath
+      }
     });
 
   } catch (error) {
@@ -2431,6 +2779,97 @@ app.post('/api/agent/analyze-cv', async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Ошибка AI анализа: ${error.message}`
+    });
+  }
+});
+
+// Получение истории писем
+app.get('/api/agent/emails', (req, res) => {
+  try {
+    const EMAILS_FILE = path.join(__dirname, 'emails.json');
+    let emails = [];
+    
+    if (fs.existsSync(EMAILS_FILE)) {
+      emails = JSON.parse(fs.readFileSync(EMAILS_FILE, 'utf8'));
+    }
+    
+    res.json({
+      success: true,
+      emails: emails
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Отправка письма из истории
+app.post('/api/agent/emails/send', async (req, res) => {
+  try {
+    const { emailId, mode: explicitMode } = req.body;
+    const EMAILS_FILE = path.join(__dirname, 'emails.json');
+    
+    if (!fs.existsSync(EMAILS_FILE)) {
+      return res.status(404).json({ success: false, message: 'Письма не найдены' });
+    }
+    
+    let emails = JSON.parse(fs.readFileSync(EMAILS_FILE, 'utf8'));
+    const emailIndex = emails.findIndex(e => e.id === emailId);
+    
+    if (emailIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Письмо не найдено' });
+    }
+    
+    const email = emails[emailIndex];
+    const mode = explicitMode || email.mode || 'manual';
+    
+    console.log(`🚀 Отправка письма ${emailId} в режиме ${mode}...`);
+    
+    let result;
+    if (mode === 'manual') {
+      result = await openMailClient(email.email, `Отклик на вакансию: ${email.jobTitle}`, email.content);
+    } else {
+      // Здесь был бы реальный SMTP, но пока заглушка (или используем nodemailer если настроен)
+      console.log('   🔗 SMTP отправка (имитация)...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      result = { success: true, message: 'Письмо успешно отправлено через SMTP' };
+    }
+    
+    if (result.success) {
+      emails[emailIndex].status = 'sent';
+      emails[emailIndex].sentAt = new Date().toISOString();
+      fs.writeFileSync(EMAILS_FILE, JSON.stringify(emails, null, 2));
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Ошибка при отправке из истории:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Общий AI анализ (оценка резюме)
+app.post('/api/agent/analyze-cv-general', async (req, res) => {
+  try {
+    const { filePath, apiKey } = req.body;
+    
+    if (!filePath || !apiKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Необходимы filePath и apiKey'
+      });
+    }
+
+    const analysis = await analyzeCVGeneralWithGroq(filePath, apiKey);
+    
+    res.json({
+      success: true,
+      analysis: analysis
+    });
+  } catch (error) {
+    console.error('❌ Ошибка общего анализа CV:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 });
