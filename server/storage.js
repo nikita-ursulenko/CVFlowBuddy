@@ -31,7 +31,62 @@ export function getStats() {
     recentActivity: [],
     errorVacancies: []
   };
-  return { ...defaults, ...readJson(PATHS.stats, defaults) };
+  
+  const stats = { ...defaults, ...readJson(PATHS.stats, defaults) };
+  const emails = getEmails(); // Получаем историю из emails.json
+
+  // Преобразуем историю писем в формат активности для ленты
+  const emailActivities = emails.map(e => ({
+    id: e.id || `email_hist_${e.timestamp}`,
+    vacancy: e.company || e.email,
+    site: 'Email',
+    status: e.status === 'sent' ? 'email_sent' : 'email_generated',
+    date: new Date(e.timestamp || Date.now()).toLocaleString('ru-RU', { 
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+    }),
+    timestamp: new Date(e.timestamp || Date.now()).getTime()
+  }));
+
+  // Объединяем, фильтруем дубликаты по названию и времени (с погрешностью 1с)
+  // и сортируем по свежести
+  const combined = [...stats.recentActivity];
+  
+  emailActivities.forEach(ea => {
+    const isDuplicate = combined.some(a => 
+      (a.id === ea.id) || 
+      (a.vacancy === ea.vacancy && Math.abs(a.timestamp - ea.timestamp) < 2000)
+    );
+    if (!isDuplicate) combined.push(ea);
+  });
+
+  stats.recentActivity = combined
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 50);
+
+  return stats;
+}
+
+/**
+ * Универсальный метод записи активности в ленту (статус-бар)
+ */
+export function recordActivity({ type = 'action', vacancy, site, status, url }) {
+  const stats = getStats();
+  const now = new Date();
+  
+  const activityItem = {
+    id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    vacancy, 
+    site: site || 'Email', 
+    url: url || '', 
+    status, // success, error, email_found, email_generated, email_sent
+    date: now.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    timestamp: now.getTime()
+  };
+
+  stats.recentActivity.unshift(activityItem);
+  stats.recentActivity = stats.recentActivity.slice(0, 50);
+  
+  writeJson(PATHS.stats, stats);
 }
 
 export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
@@ -46,15 +101,15 @@ export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
   if (dailyIndex >= 0) stats.dailyStats[dailyIndex].sent++;
   else stats.dailyStats.push({ date: today, sent: 1, errors: 0 });
   
-  stats.recentActivity.unshift({
-    id: `success_${Date.now()}`,
-    vacancy, site, url, status: 'success',
-    date: now.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    timestamp: now.getTime()
-  });
-  stats.recentActivity = stats.recentActivity.slice(0, 50);
-  
   writeJson(PATHS.stats, stats);
+  
+  recordActivity({
+    type: 'success',
+    vacancy,
+    site,
+    url,
+    status: 'success'
+  });
 }
 
 export function saveErrorStat({ vacancy, url, reason, site = 'lucru.md' }) {
@@ -75,15 +130,25 @@ export function saveErrorStat({ vacancy, url, reason, site = 'lucru.md' }) {
     date: now.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   });
   
-  stats.recentActivity.unshift({
-    id: `error_${Date.now()}`,
-    vacancy, site, status: 'error',
-    date: now.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    timestamp: now.getTime()
-  });
-  stats.recentActivity = stats.recentActivity.slice(0, 50);
-  
   writeJson(PATHS.stats, stats);
+
+  recordActivity({
+    type: 'error',
+    vacancy,
+    site,
+    url,
+    status: 'error'
+  });
+}
+
+export function saveEmailActivity(emailData, status = 'email_generated') {
+  recordActivity({
+    type: 'email',
+    vacancy: emailData.company || emailData.email,
+    site: 'Email',
+    status: status, // email_generated, email_sent
+    url: ''
+  });
 }
 
 export function saveSiteStat({ site, totalVacancies }) {
@@ -104,10 +169,19 @@ export function saveTotalCategoryJobs(totalCount) {
   writeJson(PATHS.stats, stats);
 }
 
-export function incrementEmailsFound() {
+export function incrementEmailsFound(company = '', email = '') {
   const stats = getStats();
   stats.emailsFound = (stats.emailsFound || 0) + 1;
   writeJson(PATHS.stats, stats);
+
+  if (company || email) {
+    recordActivity({
+      type: 'email_found',
+      vacancy: company || email,
+      site: 'Email Search',
+      status: 'email_found'
+    });
+  }
 }
 
 export function incrementEmailsSent() {
@@ -131,6 +205,8 @@ export function saveEmail(emailData) {
       timestamp: new Date().toISOString(),
       ...emailData
     });
+    // Записываем активность только для новых писем
+    saveEmailActivity(emailData, 'email_generated');
   }
   writeJson(PATHS.emails, emails.slice(0, 200));
 }

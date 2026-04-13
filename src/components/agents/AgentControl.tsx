@@ -594,6 +594,10 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                       
                       // Обнуляем прогресс текущего запуска
                       updateStats({ todaySent: 0 });
+                      
+                      // Ставим отметку ручного запуска для планировщика
+                      sessionStorage.setItem('agent_manual_start_session', Date.now().toString());
+                      
                       startAgent(sessionId);
                       toast.success('Автоматический агент запущен');
                     }}

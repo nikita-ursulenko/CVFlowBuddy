@@ -13,13 +13,16 @@ const statusConfig = {
   success: { label: "Успешно", color: "bg-success", textColor: "text-success" },
   error: { label: "Ошибка", color: "bg-destructive", textColor: "text-destructive" },
   pending: { label: "В процессе", color: "bg-warning", textColor: "text-warning" },
+  email_found: { label: "Почта найдена", color: "bg-blue-500", textColor: "text-blue-500" },
+  email_generated: { label: "Письмо готово", color: "bg-purple-500", textColor: "text-purple-500" },
+  email_sent: { label: "Отправлено", color: "bg-indigo-500", textColor: "text-indigo-500" },
 };
 
 const getStatusBadge = (status: string) => {
-  const config = statusConfig[status as keyof typeof statusConfig];
+  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
   return (
-    <Badge variant="outline" className={`${config.textColor} border-current text-xs`}>
-      <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${config.color}`} />
+    <Badge variant="outline" className={`${config.textColor} border-current text-xs shadow-sm bg-white/50 backdrop-blur-[2px]`}>
+      <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${config.color} animate-pulse`} />
       {config.label}
     </Badge>
   );
@@ -197,7 +200,7 @@ export default function Dashboard() {
                       </span>
                       <span className="text-xs font-bold text-primary">{day.sent}</span>
                     </div>
-                  );
+                  )
                 })
               ) : (
                 <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -237,37 +240,43 @@ export default function Dashboard() {
           <>
             {/* Mobile: Cards */}
             <div className="space-y-4 md:hidden">
-              {currentActivity.map((activity) => (
-                <div key={activity.id} className="bg-card/80 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-all duration-300">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="font-semibold text-foreground text-sm truncate">{activity.vacancy}</span>
-                    {getStatusBadge(activity.status)}
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      {activity.site}
+              {currentActivity.map((activity) => {
+                const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
+                return (
+                  <div key={activity.id} className="bg-card/80 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-all duration-300">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`p-1.5 rounded-lg shrink-0 ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                          {isEmail ? <Mail className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+                        </div>
+                        <span className="font-semibold text-foreground text-sm truncate">{activity.vacancy}</span>
+                      </div>
+                      {getStatusBadge(activity.status)}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-muted-foreground/30 rounded-full"></div>
-                      {activity.date}
+                    <div className="text-xs text-muted-foreground space-y-1.5 ml-8">
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">{activity.site}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="opacity-60">{activity.date}</span>
+                      </div>
                     </div>
-                  </div>
-                  {activity.url && (
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full h-8 text-xs"
-                        onClick={() => window.open(activity.url, '_blank')}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Открыть вакансию
-                      </Button>
+                    {activity.url && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full h-8 text-xs"
+                          onClick={() => window.open(activity.url, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Открыть вакансию
+                        </Button>
+                      </div>
+                    )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  )
+                })}
             </div>
 
             {/* Desktop: Table */}
@@ -284,14 +293,28 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {currentActivity.map((activity) => {
-                    const status = statusConfig[activity.status as keyof typeof statusConfig];
+                    const status = statusConfig[activity.status as keyof typeof statusConfig] || statusConfig.pending;
+                    const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
                     return (
                       <tr
                         key={activity.id}
                         className="border-b border-border/50 last:border-0 transition-all duration-300 hover:bg-muted/30 hover:shadow-sm"
                       >
-                        <td className="py-4 font-semibold text-foreground">{activity.vacancy}</td>
-                        <td className="py-4 text-muted-foreground">{activity.site}</td>
+                        <td className="py-4 font-semibold text-foreground">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-1.5 rounded-lg ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                              {isEmail ? <Mail className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                            </div>
+                            <span className="truncate max-w-[200px] lg:max-w-[300px]" title={activity.vacancy}>
+                              {activity.vacancy}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-4 text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            {activity.site}
+                          </div>
+                        </td>
                         <td className="py-4">
                           <Badge variant="outline" className={`${status.textColor} border-current shadow-sm`}>
                             <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${status.color}`} />
@@ -314,7 +337,7 @@ export default function Dashboard() {
                           )}
                         </td>
                       </tr>
-                    );
+                    )
                   })}
                 </tbody>
               </table>

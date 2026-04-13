@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-provider";
+import { EmailQueueNotification } from "./ai/EmailQueueNotification";
 
 const navItems = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -149,10 +150,7 @@ export default function Layout() {
                 <Moon className="h-4 w-4 md:h-5 md:w-5" />
               )}
             </Button>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 md:h-10 md:w-10 rounded-xl">
-              <Bell className="h-4 w-4 md:h-5 md:w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive md:right-3 md:top-3" />
-            </Button>
+            <EmailQueueNotification />
           </div>
         </header>
 

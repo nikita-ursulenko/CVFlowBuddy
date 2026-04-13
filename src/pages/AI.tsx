@@ -4,56 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Send, Mail, ExternalLink, CheckCircle2, Clock, Copy, Inbox, History, List } from "lucide-react";
 import { useAI } from "@/hooks/useAI";
+import { useEmails } from "@/hooks/useEmails";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AI() {
-  const { getEmails, sendEmail } = useAI();
-  const [emails, setEmails] = useState<any[]>([]);
-  const [isLoadingEmails, setIsLoadingEmails] = useState(false);
-
-  const fetchEmails = async () => {
-    try {
-      setIsLoadingEmails(true);
-      const data = await getEmails();
-      setEmails(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch emails:", error);
-    } finally {
-      setIsLoadingEmails(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchEmails();
-    // Автообновление каждые 10 сек
-    const interval = setInterval(() => {
-      fetchEmails();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSend = async (emailId: string) => {
-    try {
-      const result = await sendEmail(emailId);
-      if (result.success) {
-        toast.success(result.message || "Письмо отправлено!");
-        fetchEmails();
-      } else {
-        toast.error(result.message || "Ошибка при отправке");
-      }
-    } catch {
-      toast.error("Произошла ошибка");
-    }
-  };
+  const { 
+    pendingEmails: pending, 
+    sentEmails: sent, 
+    isLoading: isLoadingEmails, 
+    refetch: fetchEmails, 
+    sendEmail: handleSend 
+  } = useEmails();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Текст скопирован");
   };
-
-  const pending = emails.filter(e => e.status !== 'sent');
-  const sent = emails.filter(e => e.status === 'sent');
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
@@ -74,7 +41,7 @@ export default function AI() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchEmails}
+            onClick={() => fetchEmails()}
             disabled={isLoadingEmails}
             className="gap-2"
           >

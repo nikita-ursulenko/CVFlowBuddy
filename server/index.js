@@ -14,7 +14,8 @@ import {
   saveSiteStat, 
   getEmails, 
   saveEmail,
-  getAIStatus
+  getAIStatus,
+  saveEmailActivity
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -432,6 +433,8 @@ app.post('/api/agent/emails/send', async (req, res) => {
       email.status = 'sent';
       email.sentAt = new Date().toISOString();
       saveEmail(email);
+      // Записываем активность отправки
+      saveEmailActivity(email, 'email_sent');
     }
     res.json(result);
   } catch (error) {

@@ -126,7 +126,7 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
     }
 
     if (data.email) {
-      incrementEmailsFound();
+      incrementEmailsFound(data.companyName, data.email);
     }
 
     return { email: data.email, jobDescription: data.desc, companyName: data.companyName };
