@@ -190,30 +190,7 @@ export default function CV() {
             </div>
           </Card>
 
-          <Card className="p-4 md:p-6 space-y-4">
-            <h3 className="font-bold flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              Подготовка к вакансии
-            </h3>
-            
-            <div className="p-3 bg-muted/30 rounded-lg space-y-2">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Целевая вакансия</p>
-              <p className="text-sm font-medium">{demoJob.title} @ {demoJob.company}</p>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Соответствие стеку</span>
-                <span className="font-bold">92%</span>
-              </div>
-              <Progress value={92} className="h-2" />
-            </div>
-            
-            <Button className="w-full gap-2">
-              Оптимизировать CV под вакансию
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </Card>
+
         </div>
       )}
         </TabsContent>

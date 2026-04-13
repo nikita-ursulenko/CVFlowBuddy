@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS: GeneralSettings = {
     },
     name: 'CV Flow Buddy',
   },
-  emailMode: 'auto',
+  emailMode: 'manual',
   headless: true,
   autoHide: true,
   maxJobs: 10,
