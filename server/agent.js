@@ -80,12 +80,32 @@ export class SimpleLucruAgent {
     console.log('🔐 Авторизация в Lucru.md...');
     await this.page.goto('https://lucru.md/ro/login', { timeout: 60000 });
     await this.page.waitForLoadState('domcontentloaded');
-    await this.page.waitForTimeout(3000);
+    await this.page.waitForTimeout(2000);
 
-    await this.page.waitForSelector('input[name="login"]', { timeout: 30000 });
+    // Быстрая проверка по URL: если сайт уже перебросил нас в кабинет
+    if (this.isOnSecurePage()) {
+        console.log('✅ Оказалось, что мы уже авторизованы!');
+        await this.saveCookies();
+        return;
+    }
+
+    await this.page.waitForSelector('input[name="login"]', { timeout: 20000 });
     await this.page.fill('input[name="login"]', this.config.credentials.email);
     await this.page.waitForSelector('input[name="password"]', { timeout: 30000 });
     await this.page.fill('input[name="password"]', this.config.credentials.password);
+
+    // Кликаем шорткод "запомнить меня", если есть
+    try {
+      const checkbox = await this.page.$('input[type="checkbox"][name*="remember"], input[type="checkbox"][id*="remember"]');
+      if (checkbox) {
+          await checkbox.check();
+          console.log('☑️ Галочка "Запомнить меня" нажата');
+      } else {
+          // Иногда это просто кастомный label
+          const label = await this.page.$('label:has-text("Ține-mă minte"), label:has-text("Запомнить")');
+          if (label) await label.click();
+      }
+    } catch(e) {}
 
     const urlBefore = this.page.url();
     await this.page.click('button[type="submit"]');
@@ -113,20 +133,61 @@ export class SimpleLucruAgent {
     }
   }
 
+  /**
+   * Быстрая проверка без навигации: находимся ли мы уже на защищенной странице?
+   */
+  isOnSecurePage() {
+    const url = this.page?.url() || '';
+    const isSecure = ['/applicant/', '/cabinet/', '/contul-meu', '/my-resumes', '/my-profile']
+      .some(p => url.includes(p));
+    const notLogin = !url.includes('/login') && !url.includes('/signin');
+    return isSecure && notLogin;
+  }
+
   async checkIfLoggedIn() {
     try {
-      const url = this.page.url();
-      const successPatterns = ['/applicant/', '/my-resumes', '/my-profile', '/contul-meu'];
-      const onSuccess = successPatterns.some(p => url.includes(p));
-      const notOnLogin = !url.includes('/login') && !url.includes('/signin');
-      const noPassword = !(await this.page.evaluate(() =>
-        document.querySelectorAll('input[type="password"]').length > 0
-      ));
-      const hasMenu = await this.page.evaluate(() => {
-        const indicators = ['.user-menu', 'a[href*="logout"]', 'a[href*="applicant"]', 'a[href*="contul-meu"]'];
-        return indicators.some(sel => document.querySelector(sel));
+      if (!this.page) return false;
+      
+      // 1. Проверяем текущий URL без навигации
+      if (this.isOnSecurePage()) {
+        console.log('✅ Авторизация подтверждена (по URL)');
+        return true;
+      }
+
+      // 2. Переходим на страницу профиля и ищем email
+      console.log('🔍 Проверка авторизации (переход в кабинет)...');
+      await this.page.goto('https://lucru.md/ro/cabinet/about-user', { timeout: 30000 });
+      await this.page.waitForLoadState('domcontentloaded');
+      await this.page.waitForTimeout(2000);
+      
+      if (this.page.url().includes('/login')) return false;
+
+      // Ищем email на странице
+      const emailOnPage = await this.page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        for (const input of inputs) if (input.value && input.value.includes('@')) return input.value.toLowerCase().trim();
+        const texts = Array.from(document.querySelectorAll('div, span, p, label')).map(e => e.textContent || '');
+        for (const text of texts) {
+           const match = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
+           if (match) return match[1].toLowerCase().trim();
+        }
+        return '';
       });
-      return onSuccess || (notOnLogin && noPassword) || hasMenu;
+
+      const targetEmail = this.config.credentials?.email?.toLowerCase().trim();
+      console.log(`📧 Email на странице: "${emailOnPage}", ожидаем: "${targetEmail}"`);
+      
+      if (emailOnPage) {
+        if (!targetEmail || emailOnPage.includes(targetEmail)) {
+          console.log('✅ Авторизация успешна!');
+          return true;
+        }
+      } else if (this.isOnSecurePage()) {
+        // В кабинете, но email не найден — всё равно считаем вход успешным
+        console.log('✅ Находимся в кабинете, email не найден — считаем вход успешным');
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -135,19 +196,16 @@ export class SimpleLucruAgent {
   async checkIfLoggedInWithCookies() {
     try {
       console.log('🔍 Проверяем авторизацию через cookies...');
-      await this.page.goto('https://lucru.md/ro/applicant/my-resumes', { timeout: 30000 });
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(2000);
-      const url = this.page.url();
-      const ok = url.includes('/applicant/') && !url.includes('/login');
+      const ok = await this.checkIfLoggedIn();
       if (ok) {
-        console.log('✅ Авторизация через cookies успешна!');
+        console.log('✅ Авторизация успешна!');
       } else {
         console.log('⚠️ Cookies невалидны');
         if (fs.existsSync(this.cookiesFile)) fs.unlinkSync(this.cookiesFile);
       }
       return ok;
-    } catch {
+    } catch (e) {
+      console.log('⚠️ Ошибка при проверке cookies:', e.message);
       return false;
     }
   }
@@ -232,8 +290,10 @@ export class SimpleLucruAgent {
         return false;
       });
 
-      if (!submitted) await this.page.click('button[type="submit"], .app-btn', { timeout: 5000 }).catch(() => {});
-      await this.page.waitForLoadState('networkidle');
+      if (!submitted) {
+          await this.page.click('button[type="submit"], .app-btn', { timeout: 5000 }).catch(() => {});
+      }
+      // Ждем чтобы данные отправились, но не падаем если долгая загрузка
       await this.page.waitForTimeout(5000);
 
       return { success: true, message: 'CV успешно загружен' };

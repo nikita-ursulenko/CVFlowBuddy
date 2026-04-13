@@ -28,8 +28,9 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
   initialEmail = '',
   initialPassword = ''
 }) => {
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState(initialPassword);
+  const [email, setEmail] = useState(() => localStorage.getItem('cvflow_email') || initialEmail);
+  const [password, setPassword] = useState(() => localStorage.getItem('cvflow_password') || initialPassword);
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('cvflow_remember') === 'true');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,6 +44,17 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
     if (!password || password.length < 6) {
       setError('Пароль должен содержать минимум 6 символов');
       return;
+    }
+
+    // Логика "Запомнить меня"
+    if (rememberMe) {
+        localStorage.setItem('cvflow_email', email);
+        localStorage.setItem('cvflow_password', password);
+        localStorage.setItem('cvflow_remember', 'true');
+    } else {
+        localStorage.removeItem('cvflow_email');
+        localStorage.removeItem('cvflow_password');
+        localStorage.removeItem('cvflow_remember');
     }
 
     setError('');
@@ -116,6 +128,20 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
                 )}
               </Button>
             </div>
+          </div>
+
+          {/* Запомнить меня */}
+          <div className="flex items-center space-x-2 pt-1">
+            <input 
+              type="checkbox" 
+              id="rememberMe" 
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            <Label htmlFor="rememberMe" className="text-sm font-medium leading-none cursor-pointer">
+              Запомнить данные для входа
+            </Label>
           </div>
 
           {/* Error Alert */}

@@ -238,7 +238,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
       setProgress(60);
       setCurrentTask('Агент выполняет вход...');
 
-      if (result.success && result.cookies) {
+      if (result.success) {
         setProgress(80);
         setCurrentTask('Сохранение сессии...');
         
@@ -463,6 +463,15 @@ export const AgentControl: React.FC<AgentControlProps> = ({
           </Alert>
         )}
 
+        {isLoggedIn && cvFile && !cvFile.aiAnalysis && (
+          <Alert className="border-warning/30 bg-warning/5">
+            <AlertCircle className="h-5 w-5 text-warning" />
+            <AlertDescription className="text-warning font-medium">
+              <strong>⚠️ Нет AI-анализа CV!</strong> Агент не может запуститься. Перейдите в раздел <strong>"CV"</strong> и нажмите <strong>"Анализировать CV"</strong>.
+            </AlertDescription>
+          </Alert>
+        )}
+
 
             {/* Статус агента */}
             {agentStatus.isActive && (
@@ -604,7 +613,13 @@ export const AgentControl: React.FC<AgentControlProps> = ({
 
                 {/* Кнопка разовой отправки */}
                 <Button
-                  onClick={() => handleAutoApply(1)}
+                  onClick={() => {
+                    if (!cvFile?.aiAnalysis) {
+                      toast.error('❌ Нет AI-анализа CV! Перейдите в раздел "CV" → нажмите "Анализировать CV"');
+                      return;
+                    }
+                    handleAutoApply(1);
+                  }}
                   disabled={!cvFile || isAutoApplying}
                   className="flex-1 h-12 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
                 >

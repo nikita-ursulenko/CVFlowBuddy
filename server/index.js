@@ -129,6 +129,11 @@ app.post('/api/agent/check-cv-status', async (req, res) => {
     if (!isBrowserActive(agent)) await agent.initialize();
     
     const cvExists = await agent.checkCVExists();
+    
+    // Закрываем браузер после успешной проверки (авторизации),
+    // чтобы он не "зависал" на экране пользователя
+    try { await agent.cleanup(); } catch (e) {}
+
     res.json({ success: true, cvExists, needsUpload: !cvExists });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
