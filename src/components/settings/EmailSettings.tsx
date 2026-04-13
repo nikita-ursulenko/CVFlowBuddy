@@ -75,8 +75,7 @@ export const EmailSettings: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Button 
-            variant="outline" 
-            className="w-full h-11 border-dashed hover:bg-primary/5 transition-colors"
+            className="w-full h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 border-0 transition-all duration-300"
             onClick={handleTestEmail}
           >
             <Send className="h-4 w-4 mr-2" />
