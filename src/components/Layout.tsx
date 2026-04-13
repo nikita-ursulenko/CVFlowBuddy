@@ -59,7 +59,56 @@ export default function Layout() {
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-border px-4 overflow-hidden">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20" />
+              <div className="relative h-9 w-9 flex-shrink-0">
+                <svg
+                  viewBox="0 0 32 32"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-full w-full drop-shadow-sm transition-transform duration-300 group-hover:scale-110"
+                >
+                  <path
+                    d="M22 2H8C6.89543 2 6 2.89543 6 4V28C6 29.1046 6.89543 30 8 30H24C25.1046 30 26 29.1046 26 28V10L18 2H22Z"
+                    fill="url(#logo-gradient)"
+                    fillOpacity="0.15"
+                  />
+                  <path
+                    d="M26 10H18V2"
+                    stroke="url(#logo-gradient)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M26 28V10L18 2H8C6.89543 2 6 2.89543 6 4V28C6 29.1046 6.89543 30 8 30H24C25.1046 30 26 29.1046 26 28Z"
+                    stroke="url(#logo-gradient)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M19 13L13 19H17L13 25L19 19H15L19 13Z"
+                    fill="url(#logo-gradient)"
+                    stroke="url(#logo-gradient)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="animate-pulse"
+                  />
+                  <defs>
+                    <linearGradient
+                      id="logo-gradient"
+                      x1="6"
+                      y1="2"
+                      x2="26"
+                      y2="30"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop stopColor="#3b82f6" />
+                      <stop offset="1" stopColor="#8b5cf6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
               <span className={cn(
                 "text-lg font-bold text-foreground transition-all duration-300 whitespace-nowrap",
                 (!isHovered && !sidebarOpen) ? "opacity-0 invisible w-0" : "opacity-100 visible w-auto"
