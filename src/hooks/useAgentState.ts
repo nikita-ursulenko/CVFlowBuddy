@@ -27,6 +27,8 @@ export const useAgentState = () => {
     totalSent: 0,
     totalErrors: 0,
     todaySent: 0,
+    emailsFound: 0,
+    emailsSent: 0,
     uptime: 0,
     successRate: 0
   });
@@ -249,6 +251,8 @@ export const useAgentState = () => {
       totalSent: 0,
       totalErrors: 0,
       todaySent: 0,
+      emailsFound: 0,
+      emailsSent: 0,
       uptime: 0,
       successRate: 0
     };

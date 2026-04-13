@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { ArrowUp, ArrowDown, FileText, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, ExternalLink } from "lucide-react";
+import { ArrowUp, ArrowDown, FileText, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, TrendingUp, Activity, BarChart3, ExternalLink, Search, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -93,7 +93,27 @@ export default function Dashboard() {
       iconBg: "from-blue-500 to-blue-600",
     },
     {
-      title: "Ошибок",
+      title: "Найдено Email",
+      value: stats?.emailsFound?.toString() || "0",
+      change: "+0%",
+      trend: "up" as const,
+      icon: Search,
+      gradient: "from-purple-500 to-purple-600",
+      bgGradient: "from-purple-500/10 to-purple-600/5 dark:from-purple-500/20 dark:to-purple-600/10",
+      iconBg: "from-purple-500 to-purple-600",
+    },
+    {
+      title: "Отправлено Email",
+      value: stats?.emailsSent?.toString() || "0",
+      change: "+0%",
+      trend: "up" as const,
+      icon: Mail,
+      gradient: "from-indigo-500 to-indigo-600",
+      bgGradient: "from-indigo-500/10 to-indigo-600/5 dark:from-indigo-500/20 dark:to-indigo-600/10",
+      iconBg: "from-indigo-500 to-indigo-600",
+    },
+    {
+      title: "Ошибки",
       value: stats?.totalErrors.toString() || "0",
       change: "+0%",
       trend: "down" as const,
@@ -102,22 +122,12 @@ export default function Dashboard() {
       bgGradient: "from-red-500/10 to-red-600/5 dark:from-red-500/20 dark:to-red-600/10",
       iconBg: "from-red-500 to-red-600",
     },
-    {
-      title: "Всего обработано",
-      value: stats?.totalProcessed.toString() || "0",
-      change: "+0%",
-      trend: "up" as const,
-      icon: CheckCircle2,
-      gradient: "from-green-500 to-green-600",
-      bgGradient: "from-green-500/10 to-green-600/5 dark:from-green-500/20 dark:to-green-600/10",
-      iconBg: "from-green-500 to-green-600",
-    },
   ];
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {kpiData.map((kpi) => (
           <Card
             key={kpi.title}

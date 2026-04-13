@@ -138,8 +138,7 @@ export const useAgentScheduler = ({
           headless: settings.headless,
           isScheduled: true,
           apiKey: JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}').config?.apiKey,
-          smtpConfig: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').smtp,
-          emailMode: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').emailMode || 'auto'
+          emailMode: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').emailMode || 'manual'
         }
       );
 

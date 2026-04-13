@@ -205,12 +205,12 @@ export default function AI() {
           <div className="flex md:flex-col gap-2 justify-end shrink-0">
             <Button
               size="sm"
-              className="gap-2"
-              disabled={email.status === 'sent'}
+              className={`gap-2 ${email.status === 'sent' ? 'bg-success/20 text-success hover:bg-success/30 border-success/40' : ''}`}
+              variant={email.status === 'sent' ? 'outline' : 'default'}
               onClick={() => handleSend(email.id)}
             >
               <Send className="h-4 w-4" />
-              Отправить
+              {email.status === 'sent' ? 'Еще раз' : 'Отправить'}
             </Button>
             <Button
               size="sm"

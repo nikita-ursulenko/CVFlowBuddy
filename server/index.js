@@ -243,7 +243,7 @@ app.post('/api/agent/sync-cv', async (req, res) => {
 // Auto-Apply
 app.post('/api/agent/auto-apply-jobs', async (req, res) => {
   try {
-    const { sessionId, cvData, maxJobs = 10, apiKey, model, provider, smtpConfig, emailMode = 'auto' } = req.body;
+    const { sessionId, cvData, maxJobs = 10, apiKey, model, provider, emailMode = 'manual' } = req.body;
     let agent = activeAgents.get(sessionId);
     
     if (!agent) {
@@ -265,7 +265,7 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     if (!isBrowserActive(agent)) await agent.initialize();
 
     // Start in background
-    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, model, provider, smtpConfig, emailMode })
+    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, model, provider, emailMode })
       .then(async result => {
         console.log(`✅ Auto-apply ${sessionId} done`);
         // Автоматически закрываем браузер после завершения отправок
@@ -404,23 +404,29 @@ app.post('/api/stats/success', (req, res) => { saveSuccessStat(req.body); res.js
 app.post('/api/stats/error', (req, res) => { saveErrorStat(req.body); res.json({ success: true }); });
 app.post('/api/stats/site', (req, res) => { saveSiteStat(req.body); res.json({ success: true }); });
 
+// Test Email
+app.post('/api/agent/test-email', async (req, res) => {
+  try {
+    const { to, subject, body } = req.body;
+    console.log(`🧪 Тестовое письмо (Manual): к=${to}`);
+    const result = await openMailClient(to, subject, body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Email history
 app.get('/api/agent/emails', (req, res) => res.json({ success: true, emails: getEmails() }));
 app.post('/api/agent/emails/send', async (req, res) => {
   try {
-    const { emailId, mode: expMode } = req.body;
+    const { emailId } = req.body;
     const emails = getEmails();
     const email = emails.find(e => e.id === emailId);
     if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
 
-    const mode = expMode || email.mode || 'manual';
-    let result;
-    if (mode === 'manual') {
-      result = await openMailClient(email.email, `Apply: ${email.jobTitle}`, email.content);
-    } else {
-      // SMTP implementation would go here
-      result = { success: true, message: 'SMTP simulation success' };
-    }
+    console.log(`✉️ Отправка письма вручную: ${email.company}`);
+    const result = await openMailClient(email.email, `Apply: ${email.jobTitle}`, email.content);
     
     if (result.success) {
       email.status = 'sent';

@@ -1,6 +1,14 @@
 import { readPdfText } from './utils.js';
 import { callAI } from './ai.js';
-import { saveEmail, isDuplicateEmail, saveGroqStatus, getAIStatus, saveAIStatus } from './storage.js';
+import { 
+  saveEmail, 
+  isDuplicateEmail, 
+  saveGroqStatus, 
+  getAIStatus, 
+  saveAIStatus,
+  incrementEmailsFound,
+  incrementEmailsSent
+} from './storage.js';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -117,6 +125,10 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
       }
     }
 
+    if (data.email) {
+      incrementEmailsFound();
+    }
+
     return { email: data.email, jobDescription: data.desc, companyName: data.companyName };
   } catch (error) {
     console.error(`❌ Ошибка извлечения email: ${error.message}`);
@@ -159,8 +171,8 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
     1. The letter should be in Russian, written from the first person. 
     2. It should be professional yet concise. 
     3. If multiple Job Titles are provided, mention that you are interested in several positions.
-    5. DO NOT include subject line, ONLY the body text.
-    6. Maximum length: 180 words.`;
+    4. DO NOT include subject line, ONLY the body text.
+    5. Maximum length: 180 words.`;
 
   while (attempt < maxRetries) {
     try {
@@ -201,10 +213,11 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
         subject,
         content: content,
         cvPath: cvData.serverFilePath || cvData.filePath,
-        mode: emailMode,
+        mode: 'manual',
         status: 'pending'
       });
 
+      incrementEmailsSent();
       console.log(`✉️ Письмо для HR ${companyName} (${targetEmail}) успешно сгенерировано с учетом CV!`);
       return true;
 

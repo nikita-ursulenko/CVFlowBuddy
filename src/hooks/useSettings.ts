@@ -1,20 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  auth: {
-    user: string;
-    pass: string;
-  };
-  name: string;
-  targetEmail?: string;
-}
-
 interface GeneralSettings {
-  smtp: SmtpConfig;
-  emailMode: 'auto' | 'manual';
+  emailMode: 'manual';
   headless: boolean;
   autoHide: boolean;
   maxJobs: number;
@@ -22,16 +9,6 @@ interface GeneralSettings {
 }
 
 const DEFAULT_SETTINGS: GeneralSettings = {
-  smtp: {
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: '',
-      pass: '',
-    },
-    name: 'CV Flow Buddy',
-  },
   emailMode: 'manual',
   headless: true,
   autoHide: true,
@@ -47,7 +24,16 @@ export const useSettings = () => {
     const saved = localStorage.getItem('cvflow_general_settings');
     if (saved) {
       try {
-        setSettings(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Очищаем старые поля если они были
+        const clean = {
+          emailMode: 'manual' as const,
+          headless: parsed.headless ?? DEFAULT_SETTINGS.headless,
+          autoHide: parsed.autoHide ?? DEFAULT_SETTINGS.autoHide,
+          maxJobs: parsed.maxJobs ?? DEFAULT_SETTINGS.maxJobs,
+          minMatchScore: parsed.minMatchScore ?? DEFAULT_SETTINGS.minMatchScore
+        };
+        setSettings(clean);
       } catch (e) {
         console.error('Failed to parse settings', e);
       }
@@ -63,18 +49,9 @@ export const useSettings = () => {
     });
   }, []);
 
-  const updateSmtp = useCallback((smtp: Partial<SmtpConfig>) => {
-    setSettings(prev => {
-      const updated = { ...prev, smtp: { ...prev.smtp, ...smtp } };
-      localStorage.setItem('cvflow_general_settings', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
   return {
     settings,
     isLoading,
     updateSettings,
-    updateSmtp,
   };
 };

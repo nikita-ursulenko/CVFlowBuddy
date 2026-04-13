@@ -19,15 +19,19 @@ function writeJson(path, data) {
 }
 
 export function getStats() {
-  return readJson(PATHS.stats, {
+  const defaults = {
     totalSent: 0,
     totalErrors: 0,
     totalProcessed: 0,
+    totalCategoryJobs: 0,
+    emailsFound: 0,
+    emailsSent: 0,
     dailyStats: [],
     siteStats: [],
     recentActivity: [],
     errorVacancies: []
-  });
+  };
+  return { ...defaults, ...readJson(PATHS.stats, defaults) };
 }
 
 export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
@@ -97,6 +101,18 @@ export function saveSiteStat({ site, totalVacancies }) {
 export function saveTotalCategoryJobs(totalCount) {
   const stats = getStats();
   stats.totalCategoryJobs = totalCount;
+  writeJson(PATHS.stats, stats);
+}
+
+export function incrementEmailsFound() {
+  const stats = getStats();
+  stats.emailsFound = (stats.emailsFound || 0) + 1;
+  writeJson(PATHS.stats, stats);
+}
+
+export function incrementEmailsSent() {
+  const stats = getStats();
+  stats.emailsSent = (stats.emailsSent || 0) + 1;
   writeJson(PATHS.stats, stats);
 }
 

@@ -122,8 +122,7 @@ export function useAgentAutoApply({
       minMatchScore: 70,
       headless: settings.headless ?? config?.settings?.headless ?? true,
       apiKey: aiSystemSettings?.config?.apiKey || getAISettings().apiKey,
-      smtpConfig: generalSettings?.smtp,
-      emailMode: generalSettings?.emailMode || 'auto'
+      emailMode: 'manual' as const
     };
 
     // Авто-анализ CV если ещё не сделан

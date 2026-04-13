@@ -3,6 +3,8 @@ export interface StatsData {
   totalSent: number;
   totalErrors: number;
   totalProcessed: number;
+  emailsFound?: number;
+  emailsSent?: number;
   dailyStats: DailyStat[];
   siteStats: SiteStat[];
   recentActivity: ActivityItem[];
@@ -81,6 +83,8 @@ export class StatsAPI {
       totalSent: 0,
       totalErrors: 0,
       totalProcessed: 0,
+      emailsFound: 0,
+      emailsSent: 0,
       dailyStats: [],
       siteStats: [],
       recentActivity: [],

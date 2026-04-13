@@ -9,7 +9,7 @@ import { agentServerAPI } from '@/lib/api/agent-server';
 import { useCV } from '@/hooks/useCV';
 import { useAgentState } from '@/hooks/useAgentState';
 import { useAgentScheduler } from '@/hooks/useAgentScheduler';
-import { Play, AlertCircle, CheckCircle, Layers, Zap, FileText, ChevronDown, ChevronUp, Pause, Square, PlayCircle, Settings, Bot, Activity, Server } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Layers, Zap, FileText, ChevronDown, ChevronUp, Pause, Square, PlayCircle, Settings, Bot, Activity, Server, Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoginDialog } from './LoginDialog';
 import { AgentSettingsDialog } from './AgentSettings';
@@ -71,6 +71,50 @@ export const AgentControl: React.FC<AgentControlProps> = ({
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [totalCategoryJobs, setTotalCategoryJobs] = useState<number>(0);
+  const [timeUntilNextRun, setTimeUntilNextRun] = useState<string>('');
+
+  // Эффект для обратного отсчета до следующего запуска
+  useEffect(() => {
+    if (agentStatus.state !== 'running') {
+      setTimeUntilNextRun('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const lastRunStr = localStorage.getItem('agent_last_run_timestamp');
+      if (!lastRunStr) {
+        setTimeUntilNextRun('Скоро...');
+        return;
+      }
+
+      const lastRunTime = parseInt(lastRunStr, 10);
+      const intervalMs = settings.intervalHours * 60 * 60 * 1000;
+      const nextRunTime = lastRunTime + intervalMs;
+      const now = Date.now();
+      const diff = nextRunTime - now;
+
+      if (diff <= 0) {
+        setTimeUntilNextRun('Выполняется...');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const parts = [];
+      if (hours > 0) parts.push(`${hours}ч`);
+      if (minutes > 0 || hours > 0) parts.push(`${minutes}м`);
+      parts.push(`${seconds}с`);
+
+      setTimeUntilNextRun(parts.join(' '));
+    };
+
+    updateCountdown();
+    const timerId = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(timerId);
+  }, [agentStatus.state, settings.intervalHours]);
 
   // Планировщик задач - теперь работает автоматически через useEffect
   useAgentScheduler({
@@ -491,7 +535,12 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                 <div className="text-xs text-muted-foreground">
                   {agentStatus.state === 'running' ? (
                     <>
-                      <div>Следующий запуск: через {settings.intervalHours < 1 ? `${settings.intervalHours * 60} минут` : `${settings.intervalHours} час(ов)`}</div>
+                      <div className="flex items-center gap-2">
+                        <span>Следующий запуск:</span>
+                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 animate-pulse">
+                          {timeUntilNextRun || 'через 1 час'}
+                        </Badge>
+                      </div>
                       <div className="text-success font-medium mt-1">
                         ✅ Агент работает в фоновом режиме (headless)
                       </div>
@@ -713,12 +762,50 @@ export const AgentControl: React.FC<AgentControlProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Progress 
-                  value={(stats.todaySent / settings.maxCVDaily) * 100} 
-                  className="h-2 bg-muted border border-border/50"
-                />
+                {stats.todaySent === 0 ? (
+                  <div className="relative h-2 w-full bg-muted rounded-full overflow-hidden border border-border/50">
+                    <div 
+                      className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-primary to-transparent animate-indeterminate-slide"
+                      style={{
+                        animation: 'indeterminate-slide 2s infinite linear'
+                      }}
+                    />
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      @keyframes indeterminate-slide {
+                        0% { transform: translateX(-100%); }
+                        100% { transform: translateX(300%); }
+                      }
+                    `}} />
+                  </div>
+                ) : (
+                  <Progress 
+                    value={(stats.todaySent / settings.maxCVDaily) * 100} 
+                    className="h-2 bg-muted border border-border/50"
+                  />
+                )}
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Отправлено: {stats.todaySent} CV</span>
+                  <div className="flex gap-4">
+                    <span className="flex items-center gap-1">
+                      {stats.todaySent === 0 ? (
+                        <span className="flex items-center gap-1 text-primary">
+                          <Search className="h-3 w-3 animate-bounce" /> 
+                          Поиск вакансий...
+                        </span>
+                      ) : (
+                        `Отправлено: ${stats.todaySent} CV`
+                      )}
+                    </span>
+                    {stats.emailsFound !== undefined && stats.emailsFound > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Search className="h-3 w-3" /> Найдено Email: {stats.emailsFound}
+                      </span>
+                    )}
+                    {stats.emailsSent !== undefined && stats.emailsSent > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Send className="h-3 w-3" /> Отправлено Email: {stats.emailsSent}
+                      </span>
+                    )}
+                  </div>
                   <span>Цель: {settings.maxCVDaily} CV</span>
                 </div>
               </div>

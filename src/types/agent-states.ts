@@ -32,6 +32,8 @@ export interface AgentStats {
   totalSent: number;
   totalErrors: number;
   todaySent: number;
+  emailsFound?: number;
+  emailsSent?: number;
   lastActivity?: Date;
   uptime: number; // в минутах
   successRate: number;

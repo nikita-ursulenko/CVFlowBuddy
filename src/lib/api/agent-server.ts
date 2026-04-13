@@ -190,8 +190,7 @@ export class AgentServerAPI {
     headless?: boolean; 
     isScheduled?: boolean;
     apiKey?: string;
-    smtpConfig?: any;
-    emailMode?: 'auto' | 'manual';
+    emailMode?: 'manual';
   }): Promise<{
     success: boolean;
     message: string;
@@ -219,8 +218,7 @@ export class AgentServerAPI {
           apiKey: options?.apiKey || savedApiKey,
           model,
           provider,
-          smtpConfig: options?.smtpConfig,
-          emailMode: options?.emailMode || 'auto'
+          emailMode: options?.emailMode || 'manual'
         }),
         signal: AbortSignal.timeout(600000)
       });

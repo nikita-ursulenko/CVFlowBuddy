@@ -111,10 +111,11 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
     }
 
     const vacancyRows = await page.$$('li.vacancyRow');
+    saveTotalCategoryJobs(vacancyRows.length);
     const companyMap = await buildCompanyMap(vacancyRows);
     const companyKeys = Object.keys(companyMap);
 
-    console.log(`🏢 Найдено компаний: ${companyKeys.length}. Начинаем пакетную обработку.`);
+    console.log(`🏢 Найдено компаний: ${companyKeys.length}, всего вакансий: ${vacancyRows.length}. Начинаем пакетную обработку.`);
 
     for (const companyKey of companyKeys) {
       if (agent.isStopped) break;
