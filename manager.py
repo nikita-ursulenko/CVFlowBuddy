@@ -5,10 +5,38 @@ import subprocess
 import os
 import time
 import webbrowser
+import shutil
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_CMD = ["npm", "run", "agent:server"]
-FRONTEND_CMD = ["npm", "run", "dev", "--", "--port", "8080"]
+
+def get_env_with_node():
+    """Создает копию окружения с добавленными путями к node/npm для macOS"""
+    env = os.environ.copy()
+    common_paths = [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin"
+    ]
+    # Добавляем пути в начало PATH
+    current_path = env.get("PATH", "")
+    env["PATH"] = ":".join(common_paths) + (":" + current_path if current_path else "")
+    return env
+
+APP_ENV = get_env_with_node()
+
+def get_npm_path():
+    """Находит путь к npm, учитывая специфику macOS/Windows и упаковку в .app"""
+    # Проверяем в дополненном окружении
+    npm = shutil.which("npm", path=APP_ENV["PATH"])
+    if npm: return npm
+    return "npm"
+
+NPM_PATH = get_npm_path()
+BACKEND_CMD = [NPM_PATH, "run", "agent:server"]
+FRONTEND_CMD = [NPM_PATH, "run", "dev", "--", "--port", "8080"]
 BACKEND_LOG = "server.log"
 FRONTEND_LOG = "frontend.log"
 
@@ -149,6 +177,13 @@ class ProjectManager:
 
         self._build_bg_grid()
         self._build_ui()
+        
+        # Проверка наличия npm
+        if NPM_PATH == "npm" and not shutil.which("npm"):
+            messagebox.showwarning(
+                "Зависимости не найдены", 
+                "Не удалось найти Node.js / npm. \nПожалуйста, убедитесь, что Node.js установлен."
+            )
 
     def _build_bg_grid(self):
         self.bg_canvas = tk.Canvas(self.root, width=450, height=420, bg=BG_COLOR, bd=0, highlightthickness=0)
@@ -299,8 +334,8 @@ class ProjectManager:
     def _start_logic(self):
         b_log = open(os.path.join(PROJECT_DIR, BACKEND_LOG), "w")
         f_log = open(os.path.join(PROJECT_DIR, FRONTEND_LOG), "w")
-        subprocess.Popen(BACKEND_CMD, cwd=PROJECT_DIR, stdout=b_log, stderr=subprocess.STDOUT)
-        subprocess.Popen(FRONTEND_CMD, cwd=PROJECT_DIR, stdout=f_log, stderr=subprocess.STDOUT)
+        subprocess.Popen(BACKEND_CMD, cwd=PROJECT_DIR, stdout=b_log, stderr=subprocess.STDOUT, env=APP_ENV)
+        subprocess.Popen(FRONTEND_CMD, cwd=PROJECT_DIR, stdout=f_log, stderr=subprocess.STDOUT, env=APP_ENV)
 
     # --- Публичные Команды ---
 
