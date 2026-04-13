@@ -32,8 +32,9 @@ uploads/
 # Logs
 *.log
 
-# Cookies (содержат авторизацию)
-lucru-cookies.json
+# Data (Persistent application data)
+data/*.json
+!data/example-*.json
 
 # Screenshots
 cv-upload-result-*.png
@@ -41,8 +42,6 @@ cv-form-*.png
 modal-debug-*.png
 vacancies-debug-*.png
 
-# Stats
-stats.json
 
 # Playwright
 .playwright/

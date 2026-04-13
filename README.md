@@ -135,18 +135,18 @@ PORT=5050 node agent-server-simple.js
 
 ```
 cvflow-buddy/
-├── src/
-│   ├── components/      # React компоненты
-│   │   ├── agents/     # Компоненты автоагентов
-│   │   ├── ai/         # AI функции
-│   │   ├── cv/         # Работа с CV
-│   │   └── jobs/       # Поиск вакансий
-│   ├── hooks/          # React хуки
-│   ├── lib/            # Утилиты и API
-│   └── pages/          # Страницы приложения
-├── agent-server-simple.js  # Backend сервер
+├── data/               # Персистентные данные (JSON)
+│   ├── emails.json        # История отправленных писем
+│   ├── stats.json         # Статистика отправок
+│   └── lucru-cookies.json # Куки сессий
+├── desktop/            # Standalone-приложение для macOS/Windows
+│   ├── manager.py         # Панель управления (Python/Tkinter)
+│   └── icon.icns          # Иконки и активы
+├── scripts/            # Вспомогательные скрипты
+├── server/             # Бэкенд (Node.js/Express)
+├── src/                # Фронтенд (React/Vite)
 ├── uploads/            # Загруженные CV файлы
-└── stats.json          # Статистика отправок
+└── ...
 ```
 
 ## 🛑 Остановка серверов

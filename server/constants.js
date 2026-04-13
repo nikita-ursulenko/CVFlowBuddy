@@ -7,10 +7,10 @@ const rootDir = path.resolve(__dirname, '..');
 
 export const PATHS = {
   uploads: path.join(rootDir, 'uploads'),
-  emails: path.join(rootDir, 'emails.json'),
-  stats: path.join(rootDir, 'stats.json'),
-  cookies: path.join(rootDir, 'lucru-cookies.json'),
-  groqStatus: path.join(rootDir, 'groq-status.json')
+  emails: path.join(rootDir, 'data', 'emails.json'),
+  stats: path.join(rootDir, 'data', 'stats.json'),
+  cookies: path.join(rootDir, 'data', 'lucru-cookies.json'),
+  groqStatus: path.join(rootDir, 'data', 'groq-status.json')
 };
 
 export const DEFAULT_CONFIG = {

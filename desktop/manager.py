@@ -7,7 +7,9 @@ import time
 import webbrowser
 import shutil
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Пути: теперь скрипт лежит в папке desktop/, поэтому корень проекта на уровень выше
+DESKTOP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(DESKTOP_DIR)
 
 def get_env_with_node():
     """Создает копию окружения с добавленными путями к node/npm для macOS"""
@@ -235,7 +237,7 @@ class ProjectManager:
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
 
-        btn_start = ElegantButton(buttons_frame, "🚀 ОНЛАЙН", self.cmd_start)
+        btn_start = ElegantButton(buttons_frame, "🚀 ЗАПУСТИТЬ САЙТ", self.cmd_start)
         btn_start.grid(row=0, column=0, sticky="ew", padx=6, pady=6)
         self.buttons.append(btn_start)
 
