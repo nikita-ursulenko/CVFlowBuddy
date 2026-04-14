@@ -436,6 +436,18 @@ app.post('/api/stats/success', (req, res) => { Storage.saveSuccessStat(req.body)
 app.post('/api/stats/error', (req, res) => { Storage.saveErrorStat(req.body); res.json({ success: true }); });
 app.post('/api/stats/site', (req, res) => { Storage.saveSiteStat(req.body); res.json({ success: true }); });
 
+app.get('/api/agent/stats-summary', (req, res) => {
+  const stats = Storage.getStats();
+  const today = new Date().toISOString().split('T')[0];
+  const daily = stats.dailyStats.find(d => d.date === today);
+  
+  res.json({
+    success: true,
+    totalRequests: stats.totalSent || 0,
+    todayRequests: daily ? daily.sent : 0
+  });
+});
+
 // Test Email
 app.post('/api/agent/test-email', async (req, res) => {
   try {

@@ -142,7 +142,25 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     fetchGroqStatus();
+    fetchRealStats();
   }, []);
+
+  const fetchRealStats = async () => {
+    try {
+      const res = await fetch("http://localhost:5050/api/agent/stats-summary");
+      const data = await res.json();
+      if (data.success) {
+        setRealStats({
+          totalRequests: data.totalRequests,
+          todayRequests: data.todayRequests
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch real stats:", e);
+    }
+  };
+
+  const [realStats, setRealStats] = useState({ totalRequests: 0, todayRequests: 0 });
 
   // Загружаем настройки при инициализации
   useEffect(() => {
@@ -193,12 +211,10 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
     setTestResult(null);
   };
 
-  const usageStats = settings?.usage ? {
-    totalCost: settings.usage.totalCost.toFixed(4),
-    totalRequests: settings.usage.totalRequests,
-    todayCost: "0.0000",
-    todayRequests: 0
-  } : null;
+  const usageStats = {
+    totalRequests: realStats.totalRequests,
+    todayRequests: realStats.todayRequests
+  };
 
   return (
     <Card className="w-full border-0 shadow-none bg-transparent">
@@ -429,19 +445,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                 <Activity className="h-5 w-5" />
                 Статистика использования
               </h3>
-              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="relative group overflow-hidden bg-blue-50/50 dark:bg-blue-500/5 p-5 rounded-2xl border border-blue-200/50 dark:border-blue-500/20 hover:shadow-lg transition-all duration-300">
-                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
-                    <TrendingUp className="h-8 w-8 text-blue-600" />
-                  </div>
-                  <div className="relative">
-                    <div className="text-2xl font-bold text-blue-600">
-                      ${usageStats.totalCost}
-                    </div>
-                    <div className="text-[11px] font-semibold text-blue-500/80 uppercase tracking-wider">Общая стоимость</div>
-                  </div>
-                </div>
-
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
                 <div className="relative group overflow-hidden bg-green-50/50 dark:bg-green-500/5 p-5 rounded-2xl border border-green-200/50 dark:border-green-500/20 hover:shadow-lg transition-all duration-300">
                   <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
                     <Bot className="h-8 w-8 text-green-600" />
@@ -451,18 +455,6 @@ export const AISettings: React.FC<AISettingsProps> = ({ isOpen, onClose }) => {
                       {usageStats.totalRequests}
                     </div>
                     <div className="text-[11px] font-semibold text-green-500/80 uppercase tracking-wider">Всего запросов</div>
-                  </div>
-                </div>
-
-                <div className="relative group overflow-hidden bg-orange-50/50 dark:bg-orange-500/5 p-5 rounded-2xl border border-orange-200/50 dark:border-orange-500/20 hover:shadow-lg transition-all duration-300">
-                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform">
-                    <Activity className="h-8 w-8 text-orange-600" />
-                  </div>
-                  <div className="relative">
-                    <div className="text-2xl font-bold text-orange-600">
-                      ${usageStats.todayCost}
-                    </div>
-                    <div className="text-[11px] font-semibold text-orange-500/80 uppercase tracking-wider">Затраты сегодня</div>
                   </div>
                 </div>
 
