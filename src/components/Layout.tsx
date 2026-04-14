@@ -11,7 +11,8 @@ import {
   X,
   Sun,
   Moon,
-  Mail
+  Mail,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ const navItems = [
   { name: "Сайты", path: "/sites", icon: Globe },
   { name: "CV", path: "/cv", icon: FileText },
   { name: "Письма", path: "/ai", icon: Mail },
+  { name: "Вакансии", path: "/vacancies", icon: Briefcase },
   { name: "Настройки", path: "/settings", icon: Settings },
 ];
 

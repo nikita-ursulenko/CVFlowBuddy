@@ -235,7 +235,8 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
             apiKey,
             model,
             provider,
-            targetEmail: companyEmail
+            targetEmail: companyEmail,
+            jobUrl: companyJobs[0]?.href ? `https://lucru.md${companyJobs[0].href}` : ''
           });
           agent.processedEmails.add(emailKey);
         }

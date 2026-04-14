@@ -96,6 +96,17 @@ export class StatsAPI {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
   }
 
+  // Получить расширенный список откликов
+  static async getAppliedVacancies(): Promise<any[]> {
+    try {
+      const data = await this.fetchFromAPI('/api/agent/applied-vacancies');
+      return data.vacancies || [];
+    } catch (error) {
+      console.error('Failed to fetch applied vacancies:', error);
+      return [];
+    }
+  }
+
   // Получить всю статистику
   static async getStatsData(): Promise<StatsData> {
     try {

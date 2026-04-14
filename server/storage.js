@@ -83,6 +83,82 @@ export function getStats() {
 }
 
 /**
+ * Возвращает расширенный список всех откликов для новой страницы "Отклики"
+ */
+export function getAppliedVacancies() {
+  const emails = getEmails();
+  const stats = readJson(PATHS.stats, { recentActivity: [] });
+  
+  // 1. Собираем отклики из писем
+  const fromEmails = emails.map(e => ({
+    id: e.id,
+    vacancy: e.jobTitle || e.company || 'Вакансия',
+    company: e.company,
+    jobTitle: e.jobTitle,
+    site: 'Email',
+    status: e.status, // sent, generated
+    date: new Date(e.timestamp || Date.now()).toLocaleString('ru-RU', { 
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+    }),
+    timestamp: new Date(e.timestamp || Date.now()).getTime(),
+    url: e.url || '', // Мы планировали добавить url в email-объекты
+    emailContent: {
+      subject: e.subject,
+      body: e.content,
+      to: e.email
+    }
+  }));
+
+  // 2. Добавляем отклики из статистики (где есть URL, но может не быть письма)
+  const fromStats = stats.recentActivity
+    .filter(a => a.status === 'success' || a.status === 'email_sent' || a.status === 'email_generated')
+    .map(a => ({
+      id: a.id,
+      vacancy: a.vacancy,
+      site: a.site || 'lucru.md',
+      status: a.status,
+      date: a.date,
+      timestamp: a.timestamp,
+      url: a.url,
+      // Тут письма нет, если оно не смэтчится ниже
+    }));
+
+  // 3. Объединяем, отдавая приоритет данным из писем (там есть контент)
+  const unified = [...fromEmails];
+  
+  fromStats.forEach(statItem => {
+    // Ищем, нет ли уже такого отклика среди писем (по URL или по названию + времени)
+    const exists = unified.find(emailItem => 
+      (statItem.url && emailItem.url === statItem.url) ||
+      (statItem.vacancy === emailItem.vacancy && Math.abs(statItem.timestamp - emailItem.timestamp) < 300000) // 5 мин
+    );
+    
+    if (exists) {
+      // Обогащаем существующую запись из письма URL-ом из статистики, если его не было
+      if (!exists.url && statItem.url) exists.url = statItem.url;
+    } else {
+      unified.push(statItem);
+    }
+  });
+
+  // 4. Фильтруем "мусор": оставляем ТОЛЬКО те вакансии, у которых есть рабочая ссылка (URL)
+  const cleaned = unified.filter(v => {
+    // Если ссылки нет или она пустая - это мусор, удаляем без исключений
+    if (!v.url || v.url.trim() === '') return false;
+
+    // Убираем технические заглушки без названия, даже если есть ссылка (опционально, но полезно)
+    if (v.vacancy === 'Вакансия' || v.vacancy.startsWith('cid_')) {
+       // Если это cid_ но есть URL, мы оставляем, так как по ссылке можно понять что это
+       return true;
+    }
+    
+    return true;
+  });
+
+  return cleaned.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/**
  * Универсальный метод записи активности в ленту (статус-бар)
  */
 export function recordActivity({ type = 'action', vacancy, site, status, url }) {

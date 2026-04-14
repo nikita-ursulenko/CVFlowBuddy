@@ -139,7 +139,7 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
   }
 }
 
-export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail }) {
+export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, jobUrl }) {
   if (!apiKey) return false;
   
   const titles = Array.isArray(jobTitles) ? jobTitles.join(' и ') : jobTitles;
@@ -222,6 +222,7 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
         subject,
         content: content,
         cvPath: cvData.serverFilePath || cvData.filePath,
+        url: jobUrl,
         mode: 'manual',
         status: 'pending'
       });

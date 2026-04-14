@@ -450,6 +450,9 @@ app.post('/api/agent/test-email', async (req, res) => {
 
 // Email history
 app.get('/api/agent/emails', (req, res) => res.json({ success: true, emails: Storage.getEmails() }));
+app.get('/api/agent/applied-vacancies', (req, res) => {
+  res.json({ success: true, vacancies: Storage.getAppliedVacancies() });
+});
 app.post('/api/agent/emails/send', async (req, res) => {
   try {
     const { emailId } = req.body;
