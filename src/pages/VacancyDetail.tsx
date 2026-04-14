@@ -15,7 +15,8 @@ import {
   Clock,
   AlertCircle,
   Copy,
-  Check
+  Check,
+  Banknote
 } from "lucide-react";
 import { StatsAPI } from "@/lib/api/stats-api";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ interface Vacancy {
   url?: string;
   jobTitle?: string;
   company?: string;
+  salary?: string;
   emailContent?: {
     subject: string;
     body: string;
@@ -147,6 +149,10 @@ export default function VacancyDetail() {
                 <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 rounded-2xl">
                   <Calendar className="h-4 w-4" />
                   <span>Применено: {vacancy.date}</span>
+                </div>
+                <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-2xl border border-primary/10">
+                  <Banknote className="h-4 w-4" />
+                  <span className="font-bold">{vacancy.salary || "Зарплата не указана"}</span>
                 </div>
               </div>
             </div>

@@ -164,11 +164,12 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
       // 1. Поиск Email (раз на компанию)
       let companyEmail = null;
       let companyJobDesc = '';
+      let extracted = null;
       let realName = info.displayName;
 
       if (apiKey) {
         const first = info.vacancies[0];
-        const extracted = await extractEmailFromJobPage(browser, `https://lucru.md${first.href}`, apiKey, model, provider);
+        extracted = await extractEmailFromJobPage(browser, `https://lucru.md${first.href}`, apiKey, model, provider);
         companyEmail = extracted.email;
         companyJobDesc = extracted.jobDescription;
         if (extracted.companyName) realName = extracted.companyName;
@@ -213,7 +214,12 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
             appliedCount++;
             appliedTitles.push(v.title);
             results.push({ job: v.title, status: 'applied' });
-            saveSuccessStat({ vacancy: v.title, site: 'lucru.md', url: `https://lucru.md${v.href}` });
+            saveSuccessStat({ 
+              vacancy: v.title, 
+              site: 'lucru.md', 
+              url: `https://lucru.md${v.href}`,
+              salary: extracted?.salary 
+            });
             await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
           } else {
             await page.keyboard.press('Escape');
@@ -236,7 +242,8 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
             model,
             provider,
             targetEmail: companyEmail,
-            jobUrl: companyJobs[0]?.href ? `https://lucru.md${companyJobs[0].href}` : ''
+            jobUrl: info.vacancies[0]?.href ? `https://lucru.md${info.vacancies[0].href}` : '',
+            salary: extracted?.salary
           });
           agent.processedEmails.add(emailKey);
         }

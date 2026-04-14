@@ -120,6 +120,7 @@ export function getAppliedVacancies() {
       date: a.date,
       timestamp: a.timestamp,
       url: a.url,
+      salary: a.salary || '',
       // Тут письма нет, если оно не смэтчится ниже
     }));
 
@@ -136,6 +137,8 @@ export function getAppliedVacancies() {
     if (exists) {
       // Обогащаем существующую запись из письма URL-ом из статистики, если его не было
       if (!exists.url && statItem.url) exists.url = statItem.url;
+      // При наличии зарплаты в письме или статистике — сохраняем её
+      if (!exists.salary && statItem.salary) exists.salary = statItem.salary;
     } else {
       unified.push(statItem);
     }
@@ -161,7 +164,7 @@ export function getAppliedVacancies() {
 /**
  * Универсальный метод записи активности в ленту (статус-бар)
  */
-export function recordActivity({ type = 'action', vacancy, site, status, url }) {
+export function recordActivity({ type = 'action', vacancy, site, status, url, salary }) {
   const stats = getStats();
   const now = new Date();
   
@@ -171,6 +174,7 @@ export function recordActivity({ type = 'action', vacancy, site, status, url }) 
     site: site || 'Email', 
     url: url || '', 
     status, // success, error, email_found, email_generated, email_sent
+    salary: salary || '',
     date: now.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
     timestamp: now.getTime()
   };
@@ -181,7 +185,7 @@ export function recordActivity({ type = 'action', vacancy, site, status, url }) 
   writeJson(PATHS.stats, stats);
 }
 
-export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
+export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '', salary = '' }) {
   const stats = getStats();
   stats.totalSent++;
   stats.totalProcessed++;
@@ -202,6 +206,7 @@ export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
     vacancy,
     site,
     url,
+    salary,
     status: 'success'
   });
 }

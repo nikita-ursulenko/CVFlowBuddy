@@ -14,7 +14,8 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Banknote
 } from "lucide-react";
 import { StatsAPI } from "@/lib/api/stats-api";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ interface Vacancy {
   url?: string;
   jobTitle?: string;
   company?: string;
+  salary?: string;
 }
 
 export default function Vacancies() {
@@ -154,6 +156,11 @@ export default function Vacancies() {
                         <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-sm font-semibold text-muted-foreground">
                           <span className="flex items-center gap-1.5">
                             <span className="text-foreground/80">{vacancy.company || vacancy.site}</span>
+                          </span>
+                          <span className="h-1 w-1 bg-muted-foreground/30 rounded-full hidden sm:block" />
+                          <span className="flex items-center gap-1.5 text-primary/80">
+                            <Banknote className="h-3.5 w-3.5" />
+                            {vacancy.salary || "Не указана"}
                           </span>
                           <span className="h-1 w-1 bg-muted-foreground/30 rounded-full hidden sm:block" />
                           <span className="flex items-center gap-1.5">

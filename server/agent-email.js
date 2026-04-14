@@ -68,7 +68,20 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
         ? descEl.innerText.substring(0, 3000)
         : document.body.innerText.substring(0, 3000);
 
-      return { email, desc, companyName };
+      // Extract salary
+      let salary = 'Не указана';
+      const salaryBlocks = Array.from(document.querySelectorAll('.sm\\:flex.items-center.gap-3'));
+      for (const block of salaryBlocks) {
+        if (block.textContent.includes('Зарплата:')) {
+          const valueEl = block.querySelector('.text-gray-700');
+          if (valueEl) {
+            salary = valueEl.textContent.trim();
+            break;
+          }
+        }
+      }
+
+      return { email, desc, companyName, salary };
     });
 
     // 4. AI fallback
@@ -130,16 +143,16 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
       incrementEmailsFound(data.companyName, data.email);
     }
 
-    return { email: data.email, jobDescription: data.desc, companyName: data.companyName };
+    return { email: data.email, jobDescription: data.desc, companyName: data.companyName, salary: data.salary };
   } catch (error) {
     console.error(`❌ Ошибка извлечения email: ${error.message}`);
-    return { email: null, jobDescription: '', companyName: '' };
+    return { email: null, jobDescription: '', companyName: '', salary: 'Не указана' };
   } finally {
     await newPage.close();
   }
 }
 
-export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, jobUrl }) {
+export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, jobUrl, salary }) {
   if (!apiKey) return false;
   
   const titles = Array.isArray(jobTitles) ? jobTitles.join(' и ') : jobTitles;
@@ -223,6 +236,7 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
         content: content,
         cvPath: cvData.serverFilePath || cvData.filePath,
         url: jobUrl,
+        salary: salary,
         mode: 'manual',
         status: 'pending'
       });
