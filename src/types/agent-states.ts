@@ -20,6 +20,8 @@ export interface AgentSettings {
   headless: boolean;      // Работать в фоновом режиме (невидимый браузер)
   emailPrompt?: string;   // Промпт для генерации текста письма
   portfolioLink?: string; // Ссылка на портфолио в подписи
+  selectedCategories?: string[]; // Список выбранных URL-путей категорий
+  availableCategories?: { name: string; href: string }[]; // Все доступные категории
 }
 
 export interface AgentLog {

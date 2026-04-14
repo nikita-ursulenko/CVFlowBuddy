@@ -14,6 +14,7 @@ interface AutoApplyOptions {
   settings: {
     maxCVDaily: number;
     headless?: boolean;
+    selectedCategories?: string[];
   };
   config: any;
   generalSettings: any;
@@ -22,6 +23,7 @@ interface AutoApplyOptions {
   saveSessionId: (id: string | null) => void;
   saveAIAnalysis: (analysis: any) => void;
   loadStatsFromServer: () => Promise<void>;
+  onProgress?: () => void;
 }
 
 export function useAgentAutoApply({
@@ -34,7 +36,8 @@ export function useAgentAutoApply({
   setLoggedIn,
   saveSessionId,
   saveAIAnalysis,
-  loadStatsFromServer
+  loadStatsFromServer,
+  onProgress
 }: AutoApplyOptions) {
   const [isAutoApplying, setIsAutoApplying] = useState(false);
   const [autoApplyProgress, setAutoApplyProgress] = useState('');
@@ -102,6 +105,7 @@ export function useAgentAutoApply({
         } else if (sessionProgress > lastProgress) {
           lastProgress = sessionProgress;
           noProgressCount = 0;
+          if (onProgress) onProgress();
         }
       } catch {}
     }, 5000);
@@ -122,7 +126,8 @@ export function useAgentAutoApply({
       minMatchScore: 70,
       headless: settings.headless ?? config?.settings?.headless ?? true,
       apiKey: aiSystemSettings?.config?.apiKey || getAISettings().apiKey,
-      emailMode: 'manual' as const
+      emailMode: 'manual' as const,
+      categories: settings.selectedCategories || config?.settings?.selectedCategories || []
     };
 
     // Авто-анализ CV если ещё не сделан

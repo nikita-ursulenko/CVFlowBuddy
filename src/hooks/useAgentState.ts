@@ -192,13 +192,16 @@ export const useAgentState = () => {
     try {
       const serverSettings = await agentServerAPI.getSettings();
       if (serverSettings) {
-        setSettings(prev => ({ ...prev, ...serverSettings }));
-        saveToStorage(STORAGE_KEYS.SETTINGS, { ...settings, ...serverSettings });
+        setSettings(prev => {
+          const updated = { ...prev, ...serverSettings };
+          saveToStorage(STORAGE_KEYS.SETTINGS, updated);
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Failed to fetch settings from server:', error);
     }
-  }, [settings, saveToStorage]);
+  }, [saveToStorage]);
 
 
   // Обновление статистики

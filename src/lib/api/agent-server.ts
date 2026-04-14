@@ -193,6 +193,7 @@ export class AgentServerAPI {
     isScheduled?: boolean;
     apiKey?: string;
     emailMode?: 'manual';
+    categories?: string[];
   }): Promise<{
     success: boolean;
     message: string;
@@ -220,7 +221,8 @@ export class AgentServerAPI {
           apiKey: options?.apiKey || savedApiKey,
           model,
           provider,
-          emailMode: options?.emailMode || 'manual'
+          emailMode: options?.emailMode || 'manual',
+          categories: options?.categories || []
         }),
         signal: AbortSignal.timeout(600000)
       });
@@ -401,6 +403,21 @@ export class AgentServerAPI {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Ошибка подключения к серверу'
+      };
+    }
+  }
+
+  async getLucruCategories(): Promise<{ success: boolean; categories?: { name: string; href: string }[]; message?: string }> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/agent/lucru/categories`, {
+        signal: AbortSignal.timeout(60000)
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Agent server getLucruCategories error:', error);
+      return {
+        success: false,
+        message: 'Не удалось получить категории'
       };
     }
   }

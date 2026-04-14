@@ -12,7 +12,13 @@ import {
   getAIStatus,
   saveEmailActivity,
   getSettings,
-  saveSettings
+  saveSettings,
+  getEmails,
+  saveEmail,
+  saveSuccessStat,
+  saveErrorStat,
+  saveSiteStat,
+  saveGroqStatusFromHeaders
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -114,6 +120,41 @@ app.post('/api/agent/login', async (req, res) => {
     res.json({ success: true, sessionId });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Categories Scraping
+app.get('/api/agent/lucru/categories', async (req, res) => {
+  let agent = null;
+  try {
+    console.log('🔍 Получение списка категорий с Lucru.md...');
+    agent = new SimpleLucruAgent({ credentials: { email: '', password: '' }, headless: true });
+    await agent.initialize();
+    
+    await agent.page.goto('https://www.lucru.md/ro/posturi-vacante', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    
+    // Ждем появления списка категорий
+    await agent.page.waitForSelector('a[href*="/categorie/"]', { timeout: 10000 });
+    
+    const categories = await agent.page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href*="/categorie/"]'));
+      return links.map(a => {
+        const span = a.querySelector('span');
+        const name = span ? span.textContent.trim() : a.textContent.trim();
+        const href = a.getAttribute('href');
+        return { name, href };
+      }).filter(c => c.name && c.href);
+    });
+
+    console.log(`✅ Найдено ${categories.length} категорий`);
+    res.json({ success: true, categories });
+  } catch (error) {
+    console.error('Ошибка при получении категорий:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    if (agent) {
+      try { await agent.cleanup(); } catch (e) {}
+    }
   }
 });
 
@@ -241,7 +282,7 @@ app.post('/api/agent/sync-cv', async (req, res) => {
 // Auto-Apply
 app.post('/api/agent/auto-apply-jobs', async (req, res) => {
   try {
-    const { sessionId, cvData, maxJobs = 10, apiKey, model, provider, emailMode = 'manual' } = req.body;
+    const { sessionId, cvData, maxJobs = 10, apiKey, model, provider, emailMode = 'manual', categories } = req.body;
     let agent = activeAgents.get(sessionId);
     
     if (!agent) {
@@ -263,7 +304,7 @@ app.post('/api/agent/auto-apply-jobs', async (req, res) => {
     if (!isBrowserActive(agent)) await agent.initialize();
 
     // Start in background
-    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, model, provider, emailMode })
+    agent.autoApplyToJobs(cvData, { maxJobs, apiKey, model, provider, emailMode, categories })
       .then(async result => {
         console.log(`✅ Auto-apply ${sessionId} done`);
         // Автоматически закрываем браузер после завершения отправок
@@ -337,7 +378,6 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
     console.log(`📊 Refreshing Groq limits for model: ${model || 'llama-3.3-70b-versatile'}`);
     
     const { createGroqClient } = await import('./utils.js');
-    const { saveGroqStatusFromHeaders } = await import('./storage.js');
     
     const groq = createGroqClient(apiKey);
     const { response } = await groq.chat.completions.create({
@@ -354,7 +394,6 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
     // Если в ошибке есть заголовки (например, при 429), сохраняем их
     if (error.response && error.response.headers) {
       try {
-        const { saveGroqStatusFromHeaders } = await import('./storage.js');
         saveGroqStatusFromHeaders(error.response.headers);
       } catch (headerErr) {
         console.error('Failed to save headers from error:', headerErr);

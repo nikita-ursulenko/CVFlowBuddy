@@ -9,7 +9,7 @@ import { agentServerAPI } from '@/lib/api/agent-server';
 import { useCV } from '@/hooks/useCV';
 import { useAgentState } from '@/hooks/useAgentState';
 import { useAgentScheduler } from '@/hooks/useAgentScheduler';
-import { Play, AlertCircle, CheckCircle, Layers, Zap, FileText, ChevronDown, ChevronUp, Pause, Square, PlayCircle, Settings, Bot, Activity, Server, Search, Send } from 'lucide-react';
+import { Play, AlertCircle, CheckCircle, Layers, Zap, FileText, Pause, Square, PlayCircle, Settings, Bot, Activity, Server, Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoginDialog } from './LoginDialog';
 import { AgentSettingsDialog } from './AgentSettings';
@@ -74,7 +74,6 @@ export const AgentControl: React.FC<AgentControlProps> = ({
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   const [localCvExistsOnSite, setLocalCvExistsOnSite] = useState<boolean | null>(null);
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
-  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [totalCategoryJobs, setTotalCategoryJobs] = useState<number>(0);
   const [timeUntilNextRun, setTimeUntilNextRun] = useState<string>('');
@@ -328,6 +327,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
         }
         
         setProgress(100);
+        
         setCurrentTask('Вход выполнен!');
         toast.success('✅ Успешный вход в Lucru.md!');
       } else {
@@ -354,7 +354,8 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     setLoggedIn,
     saveSessionId,
     saveAIAnalysis,
-    loadStatsFromServer
+    loadStatsFromServer,
+    onProgress: loadStatsFromServer
   });
 
   const handleCloseBrowser = async () => {
@@ -421,69 +422,85 @@ export const AgentControl: React.FC<AgentControlProps> = ({
 
             {/* Конфигурация */}
             <div className="bg-muted/30 rounded-lg p-4 space-y-4 border border-border">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => {
-                    console.log('Config button clicked, current state:', isConfigExpanded);
-                    setIsConfigExpanded(!isConfigExpanded);
-                  }}
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Layers className="h-4 w-4 text-primary" />
                   <span>Конфигурация</span>
-                  {isConfigExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
+                </div>
                 <Button
                   onClick={() => setIsSettingsDialogOpen(true)}
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
                   title="Настройки агента"
                 >
                   <Settings className="h-4 w-4" />
                 </Button>
               </div>
           
-              {isConfigExpanded && (
-                <div className="space-y-2 pt-2 border-t border-border/50">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Сервер:</span>
-                      <span className={serverStatus === 'online' ? 'text-success font-medium' : 'text-destructive font-medium'}>
-                        {serverStatus === 'online' ? 'Онлайн' : 'Офлайн'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">CV файл:</span>
-                      <span className="text-foreground font-medium truncate max-w-24">
-                        {cvFile?.name || 'Не загружен'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Lucru.md:</span>
-                      <span className={isLoggedIn ? 'text-success font-medium' : 'text-muted-foreground'}>
-                        {isLoggedIn ? 'Авторизован' : 'Не авторизован'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Синхронизация:</span>
-                      <span className={
-                        !isLoggedIn ? 'text-muted-foreground' :
-                        localCvExistsOnSite === null ? 'text-warning font-medium' :
-                        localCvExistsOnSite ? 'text-success font-medium' : 'text-destructive font-medium'
-                      }>
-                        {!isLoggedIn ? 'Требует авторизации' :
-                         localCvExistsOnSite === null ? 'Проверка...' :
-                         localCvExistsOnSite ? 'Синхронизировано' : 'Требует синхронизации'}
-                      </span>
+              <div className="space-y-3 pt-1 border-t border-border/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Сервер:</span>
+                    <span className={serverStatus === 'online' ? 'text-success font-medium' : 'text-destructive font-medium'}>
+                      {serverStatus === 'online' ? 'Онлайн' : 'Офлайн'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">CV файл:</span>
+                    <span className="text-foreground font-medium truncate max-w-[120px]" title={cvFile?.name}>
+                      {cvFile?.name || 'Не загружен'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Lucru.md:</span>
+                    <span className={isLoggedIn ? 'text-success font-medium' : 'text-muted-foreground'}>
+                      {isLoggedIn ? 'Авторизован' : 'Не авторизован'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Синхронизация:</span>
+                    <span className={
+                      !isLoggedIn ? 'text-muted-foreground' :
+                      localCvExistsOnSite === null ? 'text-warning font-medium' :
+                      localCvExistsOnSite ? 'text-success font-medium' : 'text-destructive font-medium'
+                    }>
+                      {!isLoggedIn ? 'Требует авторизации' :
+                       localCvExistsOnSite === null ? 'Проверка...' :
+                       localCvExistsOnSite ? 'Синхронизировано' : 'Нужна синхронизация'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Выбранные категории */}
+                <div className="pt-2 border-t border-border/30">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Search className="h-3 w-3" />
+                      Выбранные категории:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                      {settings.selectedCategories && settings.selectedCategories.length > 0 ? (
+                        settings.selectedCategories.map((href) => {
+                          const category = settings.availableCategories?.find(c => c.href === href);
+                          return (
+                            <Badge 
+                              key={href} 
+                              variant="secondary" 
+                              className="text-[10px] px-2 py-0 h-5 bg-primary/5 text-primary border-primary/10 hover:bg-primary/10 transition-colors"
+                            >
+                              {category?.name || href.split('/').pop() || href}
+                            </Badge>
+                          );
+                        })
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Категории не выбраны</span>
+                      )}
                     </div>
                   </div>
                 </div>
-              )}
-        </div>
+              </div>
+            </div>
 
         {/* Предупреждения */}
         {serverStatus === 'offline' && (
@@ -521,6 +538,7 @@ export const AgentControl: React.FC<AgentControlProps> = ({
             </AlertDescription>
           </Alert>
         )}
+
 
 
             {/* Статус агента */}
@@ -604,6 +622,12 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                       // Ставим отметку ручного запуска для планировщика
                       sessionStorage.setItem('agent_manual_start_session', Date.now().toString());
                       
+                      if (!settings.selectedCategories || settings.selectedCategories.length === 0) {
+                        toast.error('❌ Не выбраны категории вакансий! Укажите их в настройках [⚙️].');
+                        setIsSettingsDialogOpen(true);
+                        return;
+                      }
+                      
                       startAgent(sessionId);
                       toast.success('Автоматический агент запущен');
                     }}
@@ -645,6 +669,11 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                   <>
                     <Button
                       onClick={() => {
+                        if (!settings.selectedCategories || settings.selectedCategories.length === 0) {
+                          toast.error('❌ Сначала выберите категории вакансий!');
+                          setIsSettingsDialogOpen(true);
+                          return;
+                        }
                         resumeAgent();
                         toast.success('Агент возобновлен');
                       }}
@@ -675,6 +704,11 @@ export const AgentControl: React.FC<AgentControlProps> = ({
                   onClick={() => {
                     if (!cvFile?.aiAnalysis) {
                       toast.error('❌ Нет AI-анализа CV! Перейдите в раздел "CV" → нажмите "Анализировать CV"');
+                      return;
+                    }
+                    if (!settings.selectedCategories || settings.selectedCategories.length === 0) {
+                      toast.error('❌ Сначала выберите категории вакансий в настройках [⚙️]!');
+                      setIsSettingsDialogOpen(true);
                       return;
                     }
                     handleAutoApply(1);

@@ -14,6 +14,10 @@ export const PATHS = {
   settings: path.join(rootDir, 'data', 'settings.json')
 };
 
+console.log('📂 Data Paths Initialized:');
+console.log(' - Emails:', PATHS.emails);
+console.log(' - Stats:', PATHS.stats);
+
 export const DEFAULT_CONFIG = {
   port: process.env.PORT || 5050,
   maxJobs: 10,

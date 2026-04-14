@@ -97,25 +97,44 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
   const { maxJobs = 10, apiKey, model, provider = 'groq', emailMode = 'auto' } = options;
   const { page, browser } = agent;
   let appliedCount = 0;
+  let totalCategoryJobsAccumulated = 0;
   const results = [];
 
   try {
-    const itJobsUrl = 'https://www.lucru.md/ro/posturi-vacante/categorie/it';
-    console.log(`🚀 Переход на страницу IT вакансий...`);
-    await page.goto(itJobsUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const categories = options.categories && options.categories.length > 0 
+      ? options.categories 
+      : ['/ro/posturi-vacante/categorie/it'];
     
-    // Прокрутка
-    for (let i = 0; i < 5; i++) {
-      await page.evaluate(() => window.scrollBy(0, 1000));
-      await page.waitForTimeout(1000);
-    }
+    console.log(`🚀 Начинаем работу. Количество категорий: ${categories.length}`);
+    console.log(`📂 Список категорий: ${JSON.stringify(categories)}`);
+    
+    for (const categoryPath of categories) {
+      if (agent.isStopped) break;
+      if (appliedCount >= maxJobs) break;
 
-    const vacancyRows = await page.$$('li.vacancyRow');
-    saveTotalCategoryJobs(vacancyRows.length);
-    const companyMap = await buildCompanyMap(vacancyRows);
-    const companyKeys = Object.keys(companyMap);
+      const categoryUrl = categoryPath.startsWith('http') 
+        ? categoryPath 
+        : `https://www.lucru.md${categoryPath}`;
+      
+      console.log(`📂 Переход в категорию: ${categoryUrl}`);
+      await page.goto(categoryUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      
+      // Прокрутка
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollBy(0, 1000));
+        await page.waitForTimeout(1000);
+      }
 
-    console.log(`🏢 Найдено компаний: ${companyKeys.length}, всего вакансий: ${vacancyRows.length}. Начинаем пакетную обработку.`);
+      const vacancyRows = await page.$$('li.vacancyRow');
+      console.log(`📊 В категории ${categoryPath} найдено вакансий: ${vacancyRows.length}`);
+      
+      const categoryTotal = vacancyRows.length;
+      totalCategoryJobsAccumulated += categoryTotal;
+      saveTotalCategoryJobs(totalCategoryJobsAccumulated);
+      const companyMap = await buildCompanyMap(vacancyRows);
+      const companyKeys = Object.keys(companyMap);
+
+      console.log(`🏢 Найдено компаний: ${companyKeys.length}. Начинаем пакетную обработку.`);
 
     for (const companyKey of companyKeys) {
       if (agent.isStopped) break;
@@ -156,6 +175,7 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
         await page.bringToFront();
       }
 
+      const allTitles = info.vacancies.map(v => v.title);
       const appliedTitles = [];
 
       // 2. Массовый отклик на сайте
@@ -202,21 +222,20 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
         } catch (e) { console.error(`Ошибка на ${v.title}:`, e.message); }
       }
 
-      // 3. Одно письмо на компанию
-      if (companyEmail && appliedTitles.length > 0) {
+      // 3. Одно письмо на компанию (всегда, если нашли email и не отправляли ранее)
+      if (companyEmail && allTitles.length > 0) {
         const emailKey = companyEmail.toLowerCase().trim();
         if (!agent.processedEmails.has(emailKey)) {
-          console.log(`✉️ Групповое письмо для ${realName} по ${appliedTitles.length} позициям.`);
+          console.log(`✉️ Групповое письмо для ${realName} по ${allTitles.length} позициям.`);
           await generateAndQueueEmail({
             companyName: realName,
-            jobTitles: appliedTitles,
+            jobTitles: allTitles,
             jobDescription: companyJobDesc,
             cvData,
             apiKey,
             model,
             provider,
-            targetEmail: companyEmail,
-            emailMode
+            targetEmail: companyEmail
           });
           agent.processedEmails.add(emailKey);
         }
@@ -224,7 +243,8 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
 
       agent.processedCompanies.add(companyKey);
       await page.waitForTimeout(3000);
-    }
+    } // Конец цикла по компаниям
+    } // Конец цикла по категориям
 
     return { success: true, appliedCount, total: results.length, results };
   } catch (error) {

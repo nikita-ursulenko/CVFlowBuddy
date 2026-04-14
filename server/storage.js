@@ -47,14 +47,16 @@ export function getStats() {
     timestamp: new Date(e.timestamp || Date.now()).getTime()
   }));
 
-  // Объединяем, фильтруем дубликаты по названию и времени (с погрешностью 1с)
-  // и сортируем по свежести
+  // Объединяем, фильтруем дубликаты и сортируем по свежести
+  // Основной источник — это stats.json (recentActivity), там хранятся все действия сайта.
+  // Emails.json — дополнительный источник для истории писем.
   const combined = [...stats.recentActivity];
   
   emailActivities.forEach(ea => {
+    // Проверяем, нет ли уже такого email-действия в ленте
     const isDuplicate = combined.some(a => 
       (a.id === ea.id) || 
-      (a.vacancy === ea.vacancy && Math.abs(a.timestamp - ea.timestamp) < 2000)
+      (a.site === 'Email' && a.vacancy === ea.vacancy && Math.abs(a.timestamp - ea.timestamp) < 5000)
     );
     if (!isDuplicate) combined.push(ea);
   });
@@ -101,8 +103,10 @@ export function saveSuccessStat({ vacancy, site = 'lucru.md', url = '' }) {
   if (dailyIndex >= 0) stats.dailyStats[dailyIndex].sent++;
   else stats.dailyStats.push({ date: today, sent: 1, errors: 0 });
   
+  // Сохраняем основные счётчики
   writeJson(PATHS.stats, stats);
   
+  // Добавляем в историю (через recordActivity, которая сама обновит recentActivity)
   recordActivity({
     type: 'success',
     vacancy,
@@ -260,6 +264,7 @@ export function saveAIStatusFromHeaders(headers) {
 // Алиасы для обратной совместимости
 export const getGroqStatus = getAIStatus;
 export const saveGroqStatus = saveAIStatus;
+export const saveGroqStatusFromHeaders = saveAIStatusFromHeaders;
 // Настройки агента
 export function getSettings() {
   const defaults = {
@@ -281,7 +286,9 @@ CRITICAL INSTRUCTION:
 3. If multiple Job Titles are provided, mention that you are interested in several positions.
 4. DO NOT include subject line, ONLY the body text.
 5. Maximum length: 180 words.`,
-    portfolioLink: "https://nikita-ursulenko.github.io/"
+    portfolioLink: "https://nikita-ursulenko.github.io/",
+    selectedCategories: [],
+    availableCategories: []
   };
   return { ...defaults, ...readJson(PATHS.settings, defaults) };
 }

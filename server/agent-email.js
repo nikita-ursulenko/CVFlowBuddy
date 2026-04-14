@@ -45,14 +45,14 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
           el.textContent.match(/E[-\s]?mail\s*:/i)
         );
         for (const block of blocks) {
-          const m = block.textContent.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/);
+          const m = block.textContent.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b/);
           if (m && isValid(m[0])) { email = m[0].trim(); break; }
         }
       }
 
       // 3. regex по всей странице
       if (!email) {
-        const matches = document.body.innerText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g) || [];
+        const matches = document.body.innerText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b/g) || [];
         email = matches.find(isValid)?.trim() || null;
       }
 
@@ -139,7 +139,7 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
   }
 }
 
-export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail, emailMode = 'auto' }) {
+export async function generateAndQueueEmail({ companyName, jobTitles, jobDescription, cvData, apiKey, model, provider = 'groq', targetEmail }) {
   if (!apiKey) return false;
   
   const titles = Array.isArray(jobTitles) ? jobTitles.join(' и ') : jobTitles;

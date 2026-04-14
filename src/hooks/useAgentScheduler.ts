@@ -88,7 +88,7 @@ export const useAgentScheduler = ({
     console.log('🚀 Планировщик: Запускаем задачу отправки CV...');
     
     isRunningRef.current = true;
-    onLog('🤖 Начинаем автоотправку CV на IT вакансии...', 'info');
+    onLog(`🤖 Начинаем автоотправку CV (${settings.selectedCategories?.length || 0} катег.)...`, 'info');
 
     try {
       // Получаем AI анализ CV из cvFile (так же как в handleAutoApply)
@@ -138,7 +138,8 @@ export const useAgentScheduler = ({
           headless: settings.headless,
           isScheduled: true,
           apiKey: JSON.parse(localStorage.getItem('cvflow_ai_settings') || '{}').config?.apiKey,
-          emailMode: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').emailMode || 'manual'
+          emailMode: JSON.parse(localStorage.getItem('cvflow_general_settings') || '{}').emailMode || 'manual',
+          categories: settings.selectedCategories || []
         }
       );
 
