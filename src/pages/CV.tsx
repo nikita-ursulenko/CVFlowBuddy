@@ -2,7 +2,21 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, RefreshCw, Loader2, Brain, CheckCircle2, ChevronRight, Download, Eye, FileUp, Trash2, Zap } from 'lucide-react';
+import { 
+  FileText, 
+  RefreshCw, 
+  Loader2, 
+  Brain, 
+  CheckCircle2, 
+  ChevronRight, 
+  Download, 
+  Eye, 
+  FileUp, 
+  Trash2, 
+  Zap,
+  AlertCircle,
+  Briefcase
+} from 'lucide-react';
 import { useAI } from '@/hooks/useAI';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -11,6 +25,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { CVUpload } from '@/components/cv/CVUpload';
 import { useCV } from '@/hooks/useCV';
+import { cn } from "@/lib/utils";
 
 export default function CV() {
   const { cvFile, uploadCV, deleteCV, isLoggedIn, saveAIAnalysis, sessionId, cvExistsOnSite, saveCVExistsStatus } = useCV();
@@ -152,45 +167,153 @@ export default function CV() {
         </Card>
       )}
 
-      {/* AI Analysis View - if available */}
-      {isAIAvailable && !isAnalyzing && (
-        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
-          <Card className="p-4 md:p-6 space-y-4">
+      {/* AI Analysis View - Dynamic */}
+      {isAIAvailable && !isAnalyzing && cvFile?.aiAnalysis && (
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
+          {/* Main Score & Categories */}
+          <Card className="p-4 md:p-6 lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="font-bold flex items-center gap-2">
                 <Brain className="h-5 w-5 text-primary" />
                 AI Анализ резюме
               </h3>
-              <Badge variant="outline" className="bg-primary/10">85/100</Badge>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase font-semibold">Общий балл</span>
+                <Badge variant={cvFile.aiAnalysis.overallScore > 70 ? "default" : "outline"} className={cn(
+                  "text-lg font-bold px-3 py-0.5",
+                  cvFile.aiAnalysis.overallScore > 70 ? "bg-green-500 hover:bg-green-600" : "bg-yellow-500 hover:bg-yellow-600 text-white border-0"
+                )}>
+                  {cvFile.aiAnalysis.overallScore}/100
+                </Badge>
+              </div>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-medium mb-2">Сильные стороны</p>
-                <ul className="space-y-1">
-                  <li className="text-sm flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    <span>Богатый опыт в React и TypeScript</span>
-                  </li>
-                  <li className="text-sm flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    <span>Хорошая структура и читаемость проекта</span>
-                  </li>
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <p className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">Метрики качества</p>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Контент', val: cvFile.aiAnalysis.categories?.content, color: 'bg-blue-500' },
+                    { label: 'Структура', val: cvFile.aiAnalysis.categories?.structure, color: 'bg-purple-500' },
+                    { label: 'Навыки', val: cvFile.aiAnalysis.categories?.skills, color: 'bg-indigo-500' },
+                    { label: 'Impact / Результаты', val: cvFile.aiAnalysis.categories?.impact, color: 'bg-pink-500' }
+                  ].map((cat) => (
+                    <div key={cat.label} className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>{cat.label}</span>
+                        <span>{cat.val}%</span>
+                      </div>
+                      <Progress value={cat.val} className="h-1.5" indicatorClassName={cat.color} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">Сильные стороны</p>
+                <ul className="space-y-2">
+                  {cvFile.aiAnalysis.feedback?.strengths?.map((str: string, i: number) => (
+                    <li key={i} className="text-sm flex items-start gap-2 bg-green-500/5 p-2 rounded-lg border border-green-500/10">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                      <span>{str}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-yellow-500" />
+                <p className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">Рекомендации по улучшению</p>
+              </div>
               
-              <Separator />
-              
-              <div>
-                <p className="text-sm font-medium mb-2">Рекомендации</p>
-                <p className="text-sm text-muted-foreground italic">
-                  Добавьте больше количественных метрик в описание достижений (например, "увеличил скорость загрузки на 40%").
-                </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-destructive uppercase">Критические исправления</p>
+                  {cvFile.aiAnalysis.feedback?.improvements?.critical?.map((item: string, i: number) => (
+                    <div key={i} className="text-sm p-3 bg-destructive/5 border border-destructive/10 rounded-xl flex gap-2">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-blue-500 uppercase">Советы эксперта</p>
+                  {cvFile.aiAnalysis.feedback?.improvements?.suggested?.map((item: string, i: number) => (
+                    <div key={i} className="text-sm p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex gap-2 text-muted-foreground">
+                      <ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                      <span className="italic">{item}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </Card>
 
+          {/* Sidebar Analytics */}
+          <div className="space-y-4 md:space-y-6">
+            {/* Market Analysis */}
+            <Card className="p-4 md:p-6 bg-primary/5 border-primary/10 space-y-4">
+              <h4 className="font-bold flex items-center gap-2 text-primary">
+                <Download className="h-4 w-4 rotate-180" />
+                Рыночные инсайты
+              </h4>
+              <div className="space-y-3">
+                <div className="p-3 bg-background rounded-xl border border-primary/10">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Уровень опыта</p>
+                  <p className="font-bold capitalize">{cvFile.aiAnalysis.marketAnalysis?.experienceLevel || 'Не определен'}</p>
+                </div>
+                <div className="p-3 bg-background rounded-xl border border-primary/10">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Оценка зарплаты</p>
+                  <p className="font-bold text-green-600">
+                    {cvFile.aiAnalysis.marketAnalysis?.salaryEstimate} {cvFile.aiAnalysis.marketAnalysis?.salaryEstimate && '€'}
+                    {!cvFile.aiAnalysis.marketAnalysis?.salaryEstimate && 'Нужен анализ рынка'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Подходящие роли</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cvFile.aiAnalysis.marketAnalysis?.suggestedRoles?.map((role: string) => (
+                      <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
 
+            {/* Keyword Tracking */}
+            <Card className="p-4 md:p-6 space-y-4">
+              <h4 className="font-bold flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                Ключевые слова (ATS)
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Найдено в резюме</p>
+                  <div className="flex flex-wrap gap-1">
+                    {cvFile.aiAnalysis.keywords?.found?.map((kw: string) => (
+                      <Badge key={kw} variant="outline" className="text-[10px] bg-green-500/5 text-green-600 border-green-200">
+                        {kw}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2 text-destructive">Рекомендуется добавить</p>
+                  <div className="flex flex-wrap gap-1">
+                    {cvFile.aiAnalysis.keywords?.missing?.map((kw: string) => (
+                      <Badge key={kw} variant="outline" className="text-[10px] bg-destructive/5 text-destructive border-destructive/20">
+                        + {kw}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
         </TabsContent>

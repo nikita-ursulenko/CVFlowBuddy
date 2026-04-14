@@ -5,9 +5,9 @@ import { readPdfText, createGroqClient, createGeminiClient } from './utils.js';
  * УНИВЕРСАЛЬНЫЙ ВЫЗОВ AI С ПОДДЕРЖКОЙ РАЗНЫХ ПРОВАЙДЕРОВ
  */
 export async function callAI({ provider, apiKey, model, messages, responseFormat, temperature = 0.7 }) {
-  if (provider === 'gemini') {
+    if (provider === 'gemini') {
     const genAI = createGeminiClient(apiKey);
-    const geminiModel = genAI.getGenerativeModel({ model: model || "gemini-3-flash-preview" });
+    const geminiModel = genAI.getGenerativeModel({ model: model || "gemini-1.5-flash" });
     
     // Преобразуем сообщения для Gemini
     const systemInstruction = messages.find(m => m.role === 'system')?.content || '';
@@ -60,19 +60,36 @@ export async function analyzeCVGeneral(cvFilePath, apiKey, model, provider = 'gr
       cvText = fs.readFileSync(cvFilePath, 'utf-8');
     }
 
-    const prompt = `Ты эксперт по найму и карьере. Проанализируй это резюме и дай честную оценку.
+    const prompt = `Ты высококвалифицированный эксперт по найму и карьере с глубоким пониманием ATS (Applicant Tracking Systems). 
+    Проанализируй это резюме и предоставь подробный аналитический отчет.
+    
     Тебе нужно вернуть информацию СТРОГО в формате JSON.
     
     JSON ФОРМАТ:
     {
-      "relevance": number (общий рейтинг 0-100),
-      "matchScore": number (качество оформления 0-100),
-      "experienceLevel": "junior" | "middle" | "senior" | "lead",
-      "companyType": "string (какие типы компаний подойдут лучше всего)",
-      "keySkills": ["навык1", "навык2", "навык3", "навык4"],
-      "strengths": ["сильная сторона1", "сильная сторона2", "сильная сторона3"],
-      "weaknesses": ["зона роста1", "зона роста2", "зона роста3"],
-      "recommendations": ["совет1", "совет2", "совет3"]
+      "overallScore": number (0-100),
+      "categories": {
+        "content": number (качество и полнота описания опыта),
+        "structure": number (логика и удобство чтения),
+        "skills": number (актуальность стека),
+        "impact": number (наличие достижений и цифр)
+      },
+      "marketAnalysis": {
+        "experienceLevel": "junior" | "middle" | "senior" | "lead",
+        "salaryEstimate": "string (диапазон месячной зарплаты В ЕВРО (€) ПО МЕРКАМ МОЛДАВСКОГО РЫНКА, на который может претендовать кандидат)",
+        "suggestedRoles": ["роль1", "роль2"]
+      },
+      "keywords": {
+        "found": ["навык1", "навык2"],
+        "missing": ["важный_навык1", "важный_навык2"]
+      },
+      "feedback": {
+        "strengths": ["сильная сторона1", "сильная сторона2"],
+        "improvements": {
+           "critical": ["критическое замечание1", "критическое замечание2"],
+           "suggested": ["рекомендация1", "рекомендация2"]
+        }
+      }
     }
 
     ТЕКСТ РЕЗЮМЕ:
@@ -83,7 +100,7 @@ export async function analyzeCVGeneral(cvFilePath, apiKey, model, provider = 'gr
       apiKey,
       model,
       messages: [
-        { role: 'system', content: 'Ты карьерный консультант. Твой ответ должен содержать ТОЛЬКО валидный JSON объект на русском языке. Никаких пояснений до или после JSON.' },
+        { role: 'system', content: 'Ты профессиональный HR-аналитик. Твой ответ должен содержать ТОЛЬКО валидный JSON объект на русском языке. Будь критичен и объективен.' },
         { role: 'user', content: prompt }
       ],
       temperature: 0.3,
@@ -97,7 +114,12 @@ export async function analyzeCVGeneral(cvFilePath, apiKey, model, provider = 'gr
 
     // Очистка текста от возможных markdown-оберток (```json ...)
     const cleanJson = aiResult.content.trim().replace(/```json\s*|```/g, '');
-    return JSON.parse(cleanJson || '{}');
+    const analysis = JSON.parse(cleanJson || '{}');
+    
+    // Fallback для старой структуры (если вдруг AI вернет старые поля)
+    if (analysis.relevance && !analysis.overallScore) analysis.overallScore = analysis.relevance;
+    
+    return analysis;
   } catch (error) {
     console.error('❌ Ошибка анализа CV:', error);
     // Если ошибка 429 - сохраняем статус паузы (только для Groq)
