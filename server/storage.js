@@ -260,4 +260,35 @@ export function saveAIStatusFromHeaders(headers) {
 // Алиасы для обратной совместимости
 export const getGroqStatus = getAIStatus;
 export const saveGroqStatus = saveAIStatus;
-export const saveGroqStatusFromHeaders = saveAIStatusFromHeaders;
+// Настройки агента
+export function getSettings() {
+  const defaults = {
+    intervalHours: 1,
+    maxCVDaily: 10,
+    headless: true,
+    emailPrompt: `Write a professional, short and friendly cover letter/email for a job application.
+Company: {companyName}
+Job Titles: {titles}
+Candidate Name: {name}
+Candidate Position: {position}
+Key Skills: {skills}
+Experience Summary: {experience}
+Short Job Description: {shortJobDesc}
+
+CRITICAL INSTRUCTION:
+1. The letter should be in Russian, written from the first person. 
+2. It should be professional yet concise. 
+3. If multiple Job Titles are provided, mention that you are interested in several positions.
+4. DO NOT include subject line, ONLY the body text.
+5. Maximum length: 180 words.`,
+    portfolioLink: "https://nikita-ursulenko.github.io/"
+  };
+  return { ...defaults, ...readJson(PATHS.settings, defaults) };
+}
+
+export function saveSettings(newSettings) {
+  const current = getSettings();
+  const updated = { ...current, ...newSettings };
+  writeJson(PATHS.settings, updated);
+  return updated;
+}

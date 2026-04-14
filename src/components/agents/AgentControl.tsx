@@ -50,11 +50,17 @@ export const AgentControl: React.FC<AgentControlProps> = ({
     addLog,
     updateSettings,
     updateStats,
-    resetStats
+    resetStats,
+    fetchSettingsFromServer
   } = useAgentState();
 
   const { settings: generalSettings } = useSettings();
   const { settings: aiSystemSettings } = useAI();
+
+  // Загрузка настроек с сервера при монтировании
+  useEffect(() => {
+    fetchSettingsFromServer();
+  }, [fetchSettingsFromServer]);
 
   const [status, setStatus] = useState<AgentStatus>({
     isRunning: false,

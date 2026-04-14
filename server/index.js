@@ -9,13 +9,10 @@ import { analyzeCV, analyzeCVGeneral } from './ai.js';
 import { SimpleLucruAgent } from './agent.js';
 import { openMailClient } from './email.js';
 import { 
-  getStats, 
-  saveSuccessStat, 
-  saveSiteStat, 
-  getEmails, 
-  saveEmail,
   getAIStatus,
-  saveEmailActivity
+  saveEmailActivity,
+  getSettings,
+  saveSettings
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -322,6 +319,12 @@ app.post('/api/agent/analyze-cv-general', async (req, res) => {
 
 // Stats routes
 app.get('/api/stats', (req, res) => res.json(getStats()));
+app.get('/api/agent/settings', (req, res) => res.json(getSettings()));
+app.post('/api/agent/settings', (req, res) => {
+  const settings = saveSettings(req.body);
+  res.json({ success: true, settings });
+});
+
 app.get('/api/agent/groq-status', (req, res) => {
   res.json({ success: true, ...getAIStatus() });
 });

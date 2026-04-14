@@ -1,4 +1,6 @@
 // API для взаимодействия с Node.js агентом
+import { AgentSettings } from '@/types/agent-states';
+
 export interface AgentServerConfig {
   baseUrl: string;
   timeout: number;
@@ -325,20 +327,49 @@ export class AgentServerAPI {
   }
 
   async sendEmail(emailId: string, mode?: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/api/agent/emails/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ emailId, mode })
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Agent server sendEmail error:', error);
-      return { success: false, message: 'Ошибка при отправке письма' };
+      try {
+        const response = await fetch(`${this.config.baseUrl}/api/agent/emails/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ emailId, mode })
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('Agent server sendEmail error:', error);
+        return { success: false, message: 'Ошибка при отправке письма' };
+      }
     }
-  }
+  
+    async getSettings(): Promise<AgentSettings | null> {
+      try {
+        const response = await fetch(`${this.config.baseUrl}/api/agent/settings`);
+        if (response.ok) {
+          return await response.json();
+        }
+        return null;
+      } catch (error) {
+        console.error('Agent server getSettings error:', error);
+        return null;
+      }
+    }
+  
+    async updateSettings(settings: AgentSettings): Promise<{ success: boolean; settings?: AgentSettings }> {
+      try {
+        const response = await fetch(`${this.config.baseUrl}/api/agent/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(settings)
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('Agent server updateSettings error:', error);
+        return { success: false };
+      }
+    }
 
   async testAIConnection(): Promise<{ success: boolean; message: string }> {
     try {

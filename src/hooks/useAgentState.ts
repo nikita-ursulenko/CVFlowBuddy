@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AgentState, AgentStatus, AgentSettings, AgentLog, AgentStats } from '@/types/agent-states';
+import { agentServerAPI } from '@/lib/api/agent-server';
 
 const STORAGE_KEYS = {
   STATUS: 'cvflow_agent_status',
@@ -92,6 +93,23 @@ export const useAgentState = () => {
     }
   }, []);
 
+  // Добавление лога
+  const addLog = useCallback((type: AgentLog['type'], message: string, details?: any) => {
+    const newLog: AgentLog = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      type,
+      message,
+      details
+    };
+
+    setLogs(prev => {
+      const updated = [newLog, ...prev].slice(0, 100); // Храним последние 100 логов
+      saveToStorage(STORAGE_KEYS.LOGS, updated);
+      return updated;
+    });
+  }, [saveToStorage]);
+
   // Управление состоянием агента
   const startAgent = useCallback((sessionId?: string) => {
     const newStatus: AgentStatus = {
@@ -154,29 +172,34 @@ export const useAgentState = () => {
   }, [status, saveToStorage]);
 
   // Обновление настроек
-  const updateSettings = useCallback((newSettings: Partial<AgentSettings>) => {
+  const updateSettings = useCallback(async (newSettings: Partial<AgentSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
     saveToStorage(STORAGE_KEYS.SETTINGS, updated);
-    addLog('info', 'Настройки обновлены');
+    
+    // Синхронизируем с сервером
+    try {
+      await agentServerAPI.updateSettings(updated);
+    } catch (error) {
+      console.error('Failed to sync settings with server:', error);
+    }
+    
+    addLog('info', 'Настройки обновлены и синхронизированы');
+  }, [settings, saveToStorage, addLog]);
+
+  // Загрузка настроек с сервера
+  const fetchSettingsFromServer = useCallback(async () => {
+    try {
+      const serverSettings = await agentServerAPI.getSettings();
+      if (serverSettings) {
+        setSettings(prev => ({ ...prev, ...serverSettings }));
+        saveToStorage(STORAGE_KEYS.SETTINGS, { ...settings, ...serverSettings });
+      }
+    } catch (error) {
+      console.error('Failed to fetch settings from server:', error);
+    }
   }, [settings, saveToStorage]);
 
-  // Добавление лога
-  const addLog = useCallback((type: AgentLog['type'], message: string, details?: any) => {
-    const newLog: AgentLog = {
-      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-      type,
-      message,
-      details
-    };
-
-    setLogs(prev => {
-      const updated = [newLog, ...prev].slice(0, 100); // Храним последние 100 логов
-      saveToStorage(STORAGE_KEYS.LOGS, updated);
-      return updated;
-    });
-  }, [saveToStorage]);
 
   // Обновление статистики
   const updateStats = useCallback((updates: Partial<AgentStats>) => {
@@ -282,6 +305,7 @@ export const useAgentState = () => {
     recordMultipleSuccesses,
     recordError,
     clearLogs,
-    resetStats
+    resetStats,
+    fetchSettingsFromServer
   };
 };

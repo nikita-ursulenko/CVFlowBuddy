@@ -18,6 +18,8 @@ export interface AgentSettings {
   intervalHours: number;  // Интервал запуска агента (в часах)
   maxCVDaily: number;     // Максимум CV для отправки за один запуск
   headless: boolean;      // Работать в фоновом режиме (невидимый браузер)
+  emailPrompt?: string;   // Промпт для генерации текста письма
+  portfolioLink?: string; // Ссылка на портфолио в подписи
 }
 
 export interface AgentLog {

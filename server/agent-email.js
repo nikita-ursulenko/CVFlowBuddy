@@ -3,11 +3,12 @@ import { callAI } from './ai.js';
 import { 
   saveEmail, 
   isDuplicateEmail, 
-  saveGroqStatus, 
+  saveGroqStatus,
   getAIStatus, 
   saveAIStatus,
   incrementEmailsFound,
-  incrementEmailsSent
+  incrementEmailsSent,
+  getSettings
 } from './storage.js';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -158,21 +159,26 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
   // Короткое описание вакансии (1000 симв)
   const shortJobDesc = jobDescription ? jobDescription.substring(0, 1000) : 'No description provided';
 
-  const prompt = `Write a professional, short and friendly cover letter/email for a job application.
-    Company: ${companyName}
-    Job Titles: ${titles}
-    Candidate Name: ${name}
-    Candidate Position: ${cvData.position}
-    Key Skills: ${skills}
-    Experience Summary: ${experience}
-    Short Job Description: ${shortJobDesc}
-    
-    CRITICAL INSTRUCTION:
-    1. The letter should be in Russian, written from the first person. 
-    2. It should be professional yet concise. 
-    3. If multiple Job Titles are provided, mention that you are interested in several positions.
-    4. DO NOT include subject line, ONLY the body text.
-    5. Maximum length: 180 words.`;
+  const settings = getSettings();
+  
+  // Подготовка данных для промпта
+  const promptData = {
+    companyName,
+    titles,
+    name,
+    position: cvData.position,
+    skills,
+    experience,
+    shortJobDesc
+  };
+
+  // Заменяем плейсхолдеры в пользовательском промпте
+  let prompt = settings.emailPrompt || "";
+  Object.keys(promptData).forEach(key => {
+    const value = promptData[key] || "";
+    const regex = new RegExp(`{${key}}`, "g");
+    prompt = prompt.replace(regex, value);
+  });
 
   while (attempt < maxRetries) {
     try {
@@ -199,8 +205,11 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
       }
 
       let content = aiResult.content.trim();
-      const mandatorySign = "\n\nhttps://nikita-ursulenko.github.io/";
-      if (!content.includes("nikita-ursulenko.github.io")) {
+      const portfolioLink = settings.portfolioLink || "https://nikita-ursulenko.github.io/";
+      const linkDomain = new URL(portfolioLink).hostname;
+      
+      const mandatorySign = `\n\n${portfolioLink}`;
+      if (!content.includes(linkDomain)) {
         content += mandatorySign;
       }
       
