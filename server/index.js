@@ -8,18 +8,7 @@ import { PATHS } from './constants.js';
 import { analyzeCV, analyzeCVGeneral } from './ai.js';
 import { SimpleLucruAgent } from './agent.js';
 import { openMailClient } from './email.js';
-import { 
-  getAIStatus,
-  saveEmailActivity,
-  getSettings,
-  saveSettings,
-  getEmails,
-  saveEmail,
-  saveSuccessStat,
-  saveErrorStat,
-  saveSiteStat,
-  saveGroqStatusFromHeaders
-} from './storage.js';
+import * as Storage from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -359,15 +348,15 @@ app.post('/api/agent/analyze-cv-general', async (req, res) => {
 });
 
 // Stats routes
-app.get('/api/stats', (req, res) => res.json(getStats()));
-app.get('/api/agent/settings', (req, res) => res.json(getSettings()));
+app.get('/api/stats', (req, res) => res.json(Storage.getStats()));
+app.get('/api/agent/settings', (req, res) => res.json(Storage.getSettings()));
 app.post('/api/agent/settings', (req, res) => {
-  const settings = saveSettings(req.body);
+  const settings = Storage.saveSettings(req.body);
   res.json({ success: true, settings });
 });
 
 app.get('/api/agent/groq-status', (req, res) => {
-  res.json({ success: true, ...getAIStatus() });
+  res.json({ success: true, ...Storage.getAIStatus() });
 });
 
 app.post('/api/agent/groq-status/refresh', async (req, res) => {
@@ -386,15 +375,15 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
       max_tokens: 1
     }).withResponse();
 
-    saveGroqStatusFromHeaders(response.headers);
-    res.json({ success: true, ...getAIStatus() });
+    Storage.saveGroqStatusFromHeaders(response.headers);
+    res.json({ success: true, ...Storage.getAIStatus() });
   } catch (error) {
     console.error('Groq refresh error:', error);
     
     // Если в ошибке есть заголовки (например, при 429), сохраняем их
     if (error.response && error.response.headers) {
       try {
-        saveGroqStatusFromHeaders(error.response.headers);
+        Storage.saveGroqStatusFromHeaders(error.response.headers);
       } catch (headerErr) {
         console.error('Failed to save headers from error:', headerErr);
       }
@@ -405,10 +394,10 @@ app.post('/api/agent/groq-status/refresh', async (req, res) => {
         success: false, 
         error: error.error,
         message: error.message,
-        ...getAIStatus() // Добавляем текущие лимиты даже при ошибке
+        ...Storage.getAIStatus() // Добавляем текущие лимиты даже при ошибке
       });
     }
-    res.status(500).json({ success: false, message: error.message, ...getAIStatus() });
+    res.status(500).json({ success: false, message: error.message, ...Storage.getAIStatus() });
   }
 });
 app.post('/api/agent/gemini/test', async (req, res) => {
@@ -443,9 +432,9 @@ app.post('/api/agent/gemini/test', async (req, res) => {
   }
 });
 
-app.post('/api/stats/success', (req, res) => { saveSuccessStat(req.body); res.json({ success: true }); });
-app.post('/api/stats/error', (req, res) => { saveErrorStat(req.body); res.json({ success: true }); });
-app.post('/api/stats/site', (req, res) => { saveSiteStat(req.body); res.json({ success: true }); });
+app.post('/api/stats/success', (req, res) => { Storage.saveSuccessStat(req.body); res.json({ success: true }); });
+app.post('/api/stats/error', (req, res) => { Storage.saveErrorStat(req.body); res.json({ success: true }); });
+app.post('/api/stats/site', (req, res) => { Storage.saveSiteStat(req.body); res.json({ success: true }); });
 
 // Test Email
 app.post('/api/agent/test-email', async (req, res) => {
@@ -460,11 +449,11 @@ app.post('/api/agent/test-email', async (req, res) => {
 });
 
 // Email history
-app.get('/api/agent/emails', (req, res) => res.json({ success: true, emails: getEmails() }));
+app.get('/api/agent/emails', (req, res) => res.json({ success: true, emails: Storage.getEmails() }));
 app.post('/api/agent/emails/send', async (req, res) => {
   try {
     const { emailId } = req.body;
-    const emails = getEmails();
+    const emails = Storage.getEmails();
     const email = emails.find(e => e.id === emailId);
     if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
 
@@ -474,9 +463,9 @@ app.post('/api/agent/emails/send', async (req, res) => {
     if (result.success) {
       email.status = 'sent';
       email.sentAt = new Date().toISOString();
-      saveEmail(email);
+      Storage.saveEmail(email);
       // Записываем активность отправки
-      saveEmailActivity(email, 'email_sent');
+      Storage.saveEmailActivity(email, 'email_sent');
     }
     res.json(result);
   } catch (error) {

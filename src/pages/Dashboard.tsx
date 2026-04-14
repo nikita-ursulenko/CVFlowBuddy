@@ -34,24 +34,35 @@ export default function Dashboard() {
   const [siteStats, setSiteStats] = useState<SiteStat[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isLive, setIsLive] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
   useEffect(() => {
     loadStats();
+    // Автообновление каждые 5 секунд для синхронизации с действиями на других вкладках
+    const interval = setInterval(loadStats, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadStats = async () => {
     try {
-      const statsData = await StatsAPI.getStatsData();
-      const dailyData = await StatsAPI.getDailyStats(7);
-      
+      const [statsData, dailyData] = await Promise.all([
+        StatsAPI.getStatsData(),
+        StatsAPI.getDailyStats(7)
+      ]);
+
       setStats(statsData);
       setDailyStats(dailyData);
       setSiteStats(statsData.siteStats);
+      // Сортируем активность по дате, чтобы новые действия всегда были сверху
       setRecentActivity(statsData.recentActivity);
+      setLastSync(new Date());
+      setIsLive(true);
     } catch (error) {
       console.error('Failed to load stats:', error);
+      setIsLive(false);
     } finally {
       setLoading(false);
     }
@@ -129,6 +140,40 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">
+              Дашборд
+            </h1>
+            {lastSync && (
+              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-muted/50 border border-border/50 text-[10px] font-medium text-muted-foreground animate-in fade-in duration-500">
+                <div className={`h-1.5 w-1.5 rounded-full ${isLive ? 'bg-success animate-pulse' : 'bg-warning'}`} />
+                {isLive ? 'Live' : 'Offline'} • {lastSync.toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+          <p className="text-muted-foreground font-medium">
+            Обзор вашей активности и эффективности поиска работы
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              setLoading(true);
+              loadStats();
+            }}
+            className="bg-card hover:bg-muted border-border font-semibold transition-all duration-300"
+          >
+            <Activity className={`mr-2 h-4 w-4 text-primary ${loading ? 'animate-spin' : ''}`} />
+            Обновить данные
+          </Button>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {kpiData.map((kpi) => (
@@ -139,7 +184,7 @@ export default function Dashboard() {
             {/* Декоративные элементы */}
             <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-white/20 to-transparent rounded-full -translate-y-10 translate-x-10"></div>
             <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-white/10 to-transparent rounded-full translate-y-8 -translate-x-8"></div>
-            
+
             <div className="relative space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -161,7 +206,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="text-3xl md:text-4xl font-bold text-foreground">
                 {kpi.value}
               </div>
@@ -175,7 +220,7 @@ export default function Dashboard() {
         <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
           {/* Декоративные элементы */}
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full -translate-y-12 translate-x-12"></div>
-          
+
           <div className="relative p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 rounded-xl bg-primary shadow-lg">
@@ -183,7 +228,7 @@ export default function Dashboard() {
               </div>
               <h3 className="text-xl font-bold text-foreground">CV по дням</h3>
             </div>
-            
+
             <div className="h-64 flex items-end justify-between gap-2">
               {dailyStats.length > 0 ? (
                 dailyStats.map((day, i) => {
@@ -220,7 +265,7 @@ export default function Dashboard() {
       <Card className="relative overflow-hidden border border-border shadow-xl bg-card hover:shadow-2xl transition-all duration-300">
         {/* Декоративные элементы */}
         <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-success/10 to-primary/10 rounded-full -translate-y-12 translate-x-12"></div>
-        
+
         <div className="relative p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 rounded-xl bg-success shadow-lg">
@@ -235,183 +280,182 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        
-        {recentActivity.length > 0 ? (
-          <>
-            {/* Mobile: Cards */}
-            <div className="space-y-4 md:hidden">
-              {currentActivity.map((activity) => {
-                const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
-                return (
-                  <div key={activity.id} className="bg-card/80 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-all duration-300">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`p-1.5 rounded-lg shrink-0 ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
-                          {isEmail ? <Mail className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+
+          {recentActivity.length > 0 ? (
+            <>
+              {/* Mobile: Cards */}
+              <div className="space-y-4 md:hidden">
+                {currentActivity.map((activity) => {
+                  const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
+                  return (
+                    <div key={activity.id} className="bg-card/80 backdrop-blur-sm rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-all duration-300">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-1.5 rounded-lg shrink-0 ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                            {isEmail ? <Mail className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+                          </div>
+                          <span className="font-semibold text-foreground text-sm truncate">{activity.vacancy}</span>
                         </div>
-                        <span className="font-semibold text-foreground text-sm truncate">{activity.vacancy}</span>
+                        {getStatusBadge(activity.status)}
                       </div>
-                      {getStatusBadge(activity.status)}
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-1.5 ml-8">
-                      <div className="flex items-center gap-2">
-                        <span className="opacity-60">{activity.site}</span>
+                      <div className="text-xs text-muted-foreground space-y-1.5 ml-8">
+                        <div className="flex items-center gap-2">
+                          <span className="opacity-60">{activity.site}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="opacity-60">{activity.date}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="opacity-60">{activity.date}</span>
-                      </div>
-                    </div>
-                    {activity.url && (
-                      <div className="mt-3 pt-3 border-t border-border">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full h-8 text-xs"
-                          onClick={() => window.open(activity.url, '_blank')}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Открыть вакансию
-                        </Button>
-                      </div>
-                    )}
+                      {activity.url && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => window.open(activity.url, '_blank')}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Открыть вакансию
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-            </div>
-
-            {/* Desktop: Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left text-sm text-muted-foreground">
-                    <th className="pb-4 font-semibold">Вакансия</th>
-                    <th className="pb-4 font-semibold">Сайт</th>
-                    <th className="pb-4 font-semibold">Статус</th>
-                    <th className="pb-4 font-semibold">Дата</th>
-                    <th className="pb-4 font-semibold text-center">Ссылка</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentActivity.map((activity) => {
-                    const status = statusConfig[activity.status as keyof typeof statusConfig] || statusConfig.pending;
-                    const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
-                    return (
-                      <tr
-                        key={activity.id}
-                        className="border-b border-border/50 last:border-0 transition-all duration-300 hover:bg-muted/30 hover:shadow-sm"
-                      >
-                        <td className="py-4 font-semibold text-foreground">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`p-1.5 rounded-lg ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
-                              {isEmail ? <Mail className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
-                            </div>
-                            <span className="truncate max-w-[200px] lg:max-w-[300px]" title={activity.vacancy}>
-                              {activity.vacancy}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-4 text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            {activity.site}
-                          </div>
-                        </td>
-                        <td className="py-4">
-                          <Badge variant="outline" className={`${status.textColor} border-current shadow-sm`}>
-                            <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${status.color}`} />
-                            {status.label}
-                          </Badge>
-                        </td>
-                        <td className="py-4 text-sm text-muted-foreground">{activity.date}</td>
-                        <td className="py-4 text-center">
-                          {activity.url ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
-                              onClick={() => window.open(activity.url, '_blank')}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <span className="text-muted-foreground/30 text-xs">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Пагинация */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      
-                      return (
-                        <Button
-                          key={pageNum}
-                          variant={currentPage === pageNum ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`h-10 w-10 p-0 transition-all duration-200 ${
-                            currentPage === pageNum 
-                              ? 'bg-primary text-primary-foreground shadow-lg' 
-                              : 'border-border hover:bg-muted'
-                          }`}
-                        >
-                          {pageNum}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                <div className="text-sm text-muted-foreground font-semibold">
-                  Страница {currentPage} из {totalPages}
-                </div>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center text-muted-foreground py-12">
-            <Activity className="h-16 w-16 mx-auto mb-4 opacity-20" />
-            <p className="text-lg font-semibold mb-2">Нет данных об активности</p>
-            <p className="text-sm">Начните использовать агента для отслеживания действий</p>
-          </div>
-        )}
+
+              {/* Desktop: Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border text-left text-sm text-muted-foreground">
+                      <th className="pb-4 font-semibold">Вакансия</th>
+                      <th className="pb-4 font-semibold">Сайт</th>
+                      <th className="pb-4 font-semibold">Статус</th>
+                      <th className="pb-4 font-semibold">Дата</th>
+                      <th className="pb-4 font-semibold text-center">Ссылка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentActivity.map((activity) => {
+                      const status = statusConfig[activity.status as keyof typeof statusConfig] || statusConfig.pending;
+                      const isEmail = activity.site === 'Email' || activity.site === 'Email Search';
+                      return (
+                        <tr
+                          key={activity.id}
+                          className="border-b border-border/50 last:border-0 transition-all duration-300 hover:bg-muted/30 hover:shadow-sm"
+                        >
+                          <td className="py-4 font-semibold text-foreground">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`p-1.5 rounded-lg ${isEmail ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
+                                {isEmail ? <Mail className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                              </div>
+                              <span className="truncate max-w-[200px] lg:max-w-[300px]" title={activity.vacancy}>
+                                {activity.vacancy?.startsWith('cid_') ? 'Спецификация вакансии' : activity.vacancy}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              {activity.site}
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <Badge variant="outline" className={`${status.textColor} border-current shadow-sm`}>
+                              <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${status.color}`} />
+                              {status.label}
+                            </Badge>
+                          </td>
+                          <td className="py-4 text-sm text-muted-foreground">{activity.date}</td>
+                          <td className="py-4 text-center">
+                            {activity.url ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 hover:bg-primary/10 hover:text-primary transition-colors"
+                                onClick={() => window.open(activity.url, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Пагинация */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`h-10 w-10 p-0 transition-all duration-200 ${currentPage === pageNum
+                                ? 'bg-primary text-primary-foreground shadow-lg'
+                                : 'border-border hover:bg-muted'
+                              }`}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="h-10 w-10 p-0 border-border hover:bg-muted transition-all duration-200"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground font-semibold">
+                    Страница {currentPage} из {totalPages}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center text-muted-foreground py-12">
+              <Activity className="h-16 w-16 mx-auto mb-4 opacity-20" />
+              <p className="text-lg font-semibold mb-2">Нет данных об активности</p>
+              <p className="text-sm">Начните использовать агента для отслеживания действий</p>
+            </div>
+          )}
         </div>
       </Card>
     </div>

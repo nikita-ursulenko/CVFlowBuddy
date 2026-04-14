@@ -133,7 +133,9 @@ export default function AI() {
 
             {/* Company + title */}
             <h3 className="font-bold text-base md:text-lg leading-tight truncate">
-              {email.company} — {email.jobTitle}
+              {email.company && !email.company.startsWith('cid_') 
+                ? `${email.company} — ${email.jobTitle}` 
+                : email.jobTitle || email.company}
             </h3>
 
             {/* Email address */}

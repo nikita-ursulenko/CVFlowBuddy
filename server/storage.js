@@ -1,13 +1,16 @@
 import fs from 'fs';
 import { PATHS } from './constants.js';
 
-function readJson(path, defaultVal = {}) {
+function readJson(path, defaultValue = []) {
   try {
-    if (fs.existsSync(path)) return JSON.parse(fs.readFileSync(path, 'utf8'));
+    if (!fs.existsSync(path)) return defaultValue;
+    const data = fs.readFileSync(path, 'utf8');
+    if (!data) return defaultValue;
+    return JSON.parse(data);
   } catch (e) {
-    console.error(`Error reading ${path}:`, e.message);
+    console.error(`Ошибка при чтении ${path}:`, e.message);
+    return defaultValue;
   }
-  return defaultVal;
 }
 
 function writeJson(path, data) {
@@ -33,12 +36,20 @@ export function getStats() {
   };
   
   const stats = { ...defaults, ...readJson(PATHS.stats, defaults) };
-  const emails = getEmails(); // Получаем историю из emails.json
+  const emails = getEmails();
 
-  // Преобразуем историю писем в формат активности для ленты
+  // Вспомогательная функция для очистки названий вакансий от cid_
+  const formatVacancy = (company, title) => {
+    if (!title && !company) return 'Без названия';
+    if (!company || company.startsWith('cid_')) return title || company || 'Вакансия';
+    if (!title) return company;
+    return title;
+  };
+
+  // Преобразуем историю писем в формат активности
   const emailActivities = emails.map(e => ({
-    id: e.id || `email_hist_${e.timestamp}`,
-    vacancy: e.company || e.email,
+    id: e.id || `email_${e.timestamp}`,
+    vacancy: formatVacancy(e.company, e.jobTitle),
     site: 'Email',
     status: e.status === 'sent' ? 'email_sent' : 'email_generated',
     date: new Date(e.timestamp || Date.now()).toLocaleString('ru-RU', { 
@@ -47,18 +58,21 @@ export function getStats() {
     timestamp: new Date(e.timestamp || Date.now()).getTime()
   }));
 
-  // Объединяем, фильтруем дубликаты и сортируем по свежести
-  // Основной источник — это stats.json (recentActivity), там хранятся все действия сайта.
-  // Emails.json — дополнительный источник для истории писем.
-  const combined = [...stats.recentActivity];
+  // Объединяем и очищаем от дубликатов
+  const combined = [...stats.recentActivity.map(a => ({
+    ...a,
+    vacancy: a.vacancy?.startsWith('cid_') ? (emailActivities.find(ea => ea.vacancy && !ea.vacancy.startsWith('cid_'))?.vacancy || a.vacancy) : a.vacancy
+  }))];
   
   emailActivities.forEach(ea => {
-    // Проверяем, нет ли уже такого email-действия в ленте
+    // Проверяем на дубликаты по времени и вакансии
     const isDuplicate = combined.some(a => 
       (a.id === ea.id) || 
-      (a.site === 'Email' && a.vacancy === ea.vacancy && Math.abs(a.timestamp - ea.timestamp) < 5000)
+      (a.site === ea.site && Math.abs(a.timestamp - ea.timestamp) < 60000) // Совпадение в пределах минуты
     );
-    if (!isDuplicate) combined.push(ea);
+    if (!isDuplicate) {
+      combined.push(ea);
+    }
   });
 
   stats.recentActivity = combined
@@ -148,7 +162,7 @@ export function saveErrorStat({ vacancy, url, reason, site = 'lucru.md' }) {
 export function saveEmailActivity(emailData, status = 'email_generated') {
   recordActivity({
     type: 'email',
-    vacancy: emailData.company || emailData.email,
+    vacancy: emailData.jobTitle || emailData.company || emailData.email,
     site: 'Email',
     status: status, // email_generated, email_sent
     url: ''
