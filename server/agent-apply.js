@@ -55,35 +55,62 @@ async function buildCompanyMap(vacancyRows) {
 async function hideVacancy(page, row, jobTitle, apiKey, model, provider, findAndClickWithAI) {
   try {
     console.log(`👁️ Скрываем вакансию: ${jobTitle}`);
+    
+    // Сначала убеждаемся, что никакое модальное окно не блокирует экран
+    await page.evaluate(() => {
+      const modals = Array.from(document.querySelectorAll('.nm_modal, .modal-content, [role="dialog"]'));
+      modals.forEach(m => { if (m.offsetParent !== null) m.remove(); }); // Удаляем мешающие модалки
+    });
+
+    await row.scrollIntoViewIfNeeded();
     await row.hover();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     let hideClicked = await row.evaluate(el => {
-      const btns = Array.from(el.querySelectorAll('button, a, div'));
-      const btn = btns.find(b => {
-        const title = (b.getAttribute('title') || b.getAttribute('data-original-title') || '').toLowerCase();
-        return title.includes('ascunde') || (typeof b.className === 'string' && b.className.includes('hide_vacancy'));
-      });
-      if (btn) { btn.click(); return true; }
+      // Ищем кнопку по характерным классам и иконкам lucru.md
+      const btn = el.querySelector('.hideVacancyBtn') || 
+                  el.querySelector('.hide_vacancy_btn') || 
+                  el.querySelector('[title*="Ascunde"]') ||
+                  el.querySelector('.fa-eye-slash')?.parentElement;
+      
+      if (btn) { 
+        btn.scrollIntoView();
+        btn.click(); 
+        return true; 
+      }
       return false;
     });
 
     if (!hideClicked && apiKey && findAndClickWithAI) {
-      hideClicked = await findAndClickWithAI(row, "Кнопка 'Скрыть' (Ascunde)", apiKey, model, provider);
+      hideClicked = await findAndClickWithAI(row, "Кнопка 'Скрыть' (глаз/перечеркнутый)", apiKey, model, provider);
     }
 
     if (hideClicked) {
-      await page.waitForTimeout(1500);
+      console.log(`✅ Нажата кнопка 'Скрыть' для: ${jobTitle}. Ожидаем подтверждение...`);
+      await page.waitForTimeout(2000);
+      
       const closed = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button, a, div.btn'));
-        const closeBtn = btns.find(b => {
-          const text = (b.textContent || '').trim().toLowerCase();
-          return text.includes('închide') || text.includes('inchide');
-        });
-        if (closeBtn && closeBtn.offsetParent !== null) { closeBtn.click(); return true; }
+        const closeBtn = document.querySelector('#hidden_vacancy_info_popup_close') || 
+                         document.querySelector('.nm_close') ||
+                         Array.from(document.querySelectorAll('button, .btn')).find(b => 
+                            b.textContent.includes('Закрыть') || 
+                            b.textContent.includes('Închide') ||
+                            b.textContent.includes('OK')
+                         );
+        
+        if (closeBtn && closeBtn.offsetParent !== null) { 
+          closeBtn.click(); 
+          return true; 
+        }
         return false;
       });
-      if (!closed) await page.keyboard.press('Escape');
+      
+      if (!closed) {
+        await page.keyboard.press('Escape');
+      } else {
+        console.log(`✅ Модальное окно скрытия закрыто.`);
+      }
+      await page.waitForTimeout(500);
     }
   } catch (err) {
     console.error('Ошибка при скрытии:', err.message);
@@ -100,13 +127,28 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
   let totalCategoryJobsAccumulated = 0;
   const results = [];
 
+  // Сбрасываем кэш обработанных компаний/email для текущего запуска, 
+  // чтобы сработала проверка по дате из БД
+  agent.processedEmails = new Set();
+  agent.processedCompanies = new Set();
+
   try {
     const categories = options.categories && options.categories.length > 0 
       ? options.categories 
       : ['/ro/posturi-vacante/categorie/it'];
-    
-    console.log(`🚀 Начинаем работу. Количество категорий: ${categories.length}`);
-    console.log(`📂 Список категорий: ${JSON.stringify(categories)}`);
+
+    const modeTitle = maxJobs === 1 ? '🎯 РАЗОВАЯ ОТПРАВКА (1 вакансия)' : `🌊 ПОТОКОВАЯ ОТПРАВКА (лимит: ${maxJobs})`;
+
+    console.log(`\n${modeTitle}
+--------------------------------------------------
+1️⃣  Очистка кэша сессии (проверка по базе 14 дней).
+2️⃣  Сканирование категорий: ${categories.join(', ')}.
+3️⃣  Группировка по компаниям.
+4️⃣  Поиск контактов HR + Раскрытие кнопок.
+5️⃣  Отклик на сайте (кнопка 'Trimite CV-ul').
+6️⃣  Персональное ИИ-письмо (если есть email).
+7️⃣  Скрытие вакансии (Ascunde).
+--------------------------------------------------\n`);
     
     for (const categoryPath of categories) {
       if (agent.isStopped) break;
@@ -136,127 +178,167 @@ export async function autoApplyToJobs(agent, cvData, options = {}) {
 
       console.log(`🏢 Найдено компаний: ${companyKeys.length}. Начинаем пакетную обработку.`);
 
-    for (const companyKey of companyKeys) {
-      if (agent.isStopped) break;
-      if (appliedCount >= maxJobs) break;
-
-      const info = companyMap[companyKey];
-      
-      // Проверка глобальной паузы ИИ
-      const aiStatus = getAIStatus();
-      if (aiStatus.pausedUntil && Date.now() < aiStatus.pausedUntil) {
-        const waitMin = Math.ceil((aiStatus.pausedUntil - Date.now()) / 60000);
-        console.log(`\n🛑 ИИ всё ещё на паузе из-за лимитов (осталось ~${waitMin} мин). Пропускаем компанию ${info.displayName}...`);
-        continue;
-      }
-
-      console.log(`\n📦 Компания: ${info.displayName} (${info.vacancies.length} вак.)`);
-
-      if (agent.processedCompanies.has(companyKey)) {
-        console.log(`⏩ Пропуск: "${companyKey}" уже обработана.`);
-        for (const v of info.vacancies) {
-          const row = await findRowByHref(page, v.href);
-          if (row) await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
-        }
-        continue;
-      }
-
-      // 1. Поиск Email (раз на компанию)
-      let companyEmail = null;
-      let companyJobDesc = '';
-      let extracted = null;
-      let realName = info.displayName;
-
-      if (apiKey) {
-        const first = info.vacancies[0];
-        extracted = await extractEmailFromJobPage(browser, `https://lucru.md${first.href}`, apiKey, model, provider);
-        companyEmail = extracted.email;
-        companyJobDesc = extracted.jobDescription;
-        if (extracted.companyName) realName = extracted.companyName;
-        await page.bringToFront();
-      }
-
-      const allTitles = info.vacancies.map(v => v.title);
-      const appliedTitles = [];
-
-      // 2. Массовый отклик на сайте
-      for (const v of info.vacancies) {
+      for (const companyKey of companyKeys) {
+        if (agent.isStopped) break;
         if (appliedCount >= maxJobs) break;
-        const row = await findRowByHref(page, v.href);
-        if (!row) continue;
 
-        try {
-          await row.hover();
-          const btn = await row.$('a.cat_blue_btn');
-          if (!btn) {
-            results.push({ job: v.title, status: 'skipped' });
-            await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
-            continue;
-          }
-
-          console.log(`🔘 Отклик на сайте: ${v.title}`);
-          await btn.click();
-          await page.waitForTimeout(2000);
-
-          const ok = await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button[type="submit"], button.primary, .app-btn'));
-            const sub = btns.find(b => {
-              const t = b.textContent.toLowerCase();
-              return (t.includes('trimite') || t.includes('aplică') || t.includes('send')) && b.offsetParent !== null;
-            });
-            if (sub) { sub.click(); return true; }
-            return false;
-          });
-
-          if (ok) {
-            await page.waitForTimeout(1500);
-            await page.keyboard.press('Escape');
-            appliedCount++;
-            appliedTitles.push(v.title);
-            results.push({ job: v.title, status: 'applied' });
-            saveSuccessStat({ 
-              vacancy: v.title, 
-              site: 'lucru.md', 
-              url: `https://lucru.md${v.href}`,
-              salary: extracted?.salary 
-            });
-            await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
-          } else {
-            await page.keyboard.press('Escape');
-            results.push({ job: v.title, status: 'failed_modal' });
-          }
-        } catch (e) { console.error(`Ошибка на ${v.title}:`, e.message); }
-      }
-
-      // 3. Одно письмо на компанию (всегда, если нашли email и не отправляли ранее)
-      if (companyEmail && allTitles.length > 0) {
-        const emailKey = companyEmail.toLowerCase().trim();
-        if (!agent.processedEmails.has(emailKey)) {
-          console.log(`✉️ Групповое письмо для ${realName} по ${allTitles.length} позициям.`);
-          await generateAndQueueEmail({
-            companyName: realName,
-            jobTitles: allTitles,
-            jobDescription: companyJobDesc,
-            cvData,
-            apiKey,
-            model,
-            provider,
-            targetEmail: companyEmail,
-            jobUrl: info.vacancies[0]?.href ? `https://lucru.md${info.vacancies[0].href}` : '',
-            salary: extracted?.salary
-          });
-          agent.processedEmails.add(emailKey);
+        const info = companyMap[companyKey];
+        
+        // Проверка глобальной паузы ИИ
+        const aiStatus = getAIStatus();
+        if (aiStatus.pausedUntil && Date.now() < aiStatus.pausedUntil) {
+          const waitMin = Math.ceil((aiStatus.pausedUntil - Date.now()) / 60000);
+          console.log(`\n🛑 ИИ всё ещё на паузе из-за лимитов (осталось ~${waitMin} мин). Пропускаем компанию ${info.displayName}...`);
+          continue;
         }
+
+        console.log(`\n📦 Компания: ${info.displayName} (${info.vacancies.length} вак.)`);
+
+        if (agent.processedCompanies.has(companyKey)) {
+          console.log(`⏩ Пропуск: "${companyKey}" уже обработана.`);
+          for (const v of info.vacancies) {
+            const row = await findRowByHref(page, v.href);
+            if (row) await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
+          }
+          continue;
+        }
+
+        // 1. Поиск Email (раз на компанию)
+        let companyEmail = null;
+        let companyJobDesc = '';
+        let extracted = null;
+        let realName = info.displayName;
+
+        if (apiKey) {
+          for (let i = 0; i < Math.min(info.vacancies.length, 2); i++) {
+            const v = info.vacancies[i];
+            console.log(`🔍 Проверка вакансии ${i+1}/${info.vacancies.length} для поиска email...`);
+            extracted = await extractEmailFromJobPage(browser, `https://lucru.md${v.href}`, apiKey, model, provider);
+            if (extracted.email) {
+              companyEmail = extracted.email;
+              companyJobDesc = extracted.jobDescription;
+              break; 
+            }
+          }
+          if (extracted?.companyName) realName = extracted.companyName;
+          await page.bringToFront();
+        }
+
+        const allTitles = info.vacancies.map(v => v.title);
+        const appliedTitles = [];
+
+        // 2. Массовый отклик на сайте
+        for (const v of info.vacancies) {
+          if (agent.isStopped) break;
+          if (appliedCount >= maxJobs) break;
+
+          const row = await findRowByHref(page, v.href);
+          if (!row) continue;
+
+          try {
+            await row.hover();
+            const btn = await row.$('a.cat_blue_btn');
+            if (!btn) {
+              results.push({ job: v.title, status: 'skipped' });
+              await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
+              continue;
+            }
+
+            console.log(`🔘 Отклик на сайте: ${v.title}`);
+            await btn.click();
+            await page.waitForTimeout(2000);
+
+            let modalResult = false;
+            try {
+              console.log(`⏳ Ожидаем появление кнопки 'Trimite'...`);
+              await page.waitForTimeout(2000); 
+
+              const btnHandle = await page.evaluateHandle(() => {
+                const all = Array.from(document.querySelectorAll('button, input[type="submit"], a.app-btn, .yellow_btn, .default-btn, .btn'));
+                return all.find(b => {
+                  const t = (b.innerText || b.value || b.textContent || '').toLowerCase();
+                  const style = window.getComputedStyle(b);
+                  const isVisible = b.offsetWidth > 0 && b.offsetHeight > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                  return isVisible && (t.includes('trimite') || t.includes('отправить'));
+                });
+              });
+
+              const modalBtn = btnHandle.asElement();
+              if (modalBtn) {
+                console.log(`🔘 Кнопка найдена. Кликаем...`);
+                await modalBtn.scrollIntoViewIfNeeded();
+                await modalBtn.click({ force: true });
+                modalResult = true;
+                console.log(`✅ Успешно нажато 'Trimite' для: ${v.title}`);
+                await page.waitForTimeout(3000); 
+              } else {
+                console.log(`⚠️ Кнопка 'Trimite' не найдена обычным способом.`);
+              }
+              
+              if (modalResult) {
+                console.log(`ℹ️ Закрываем окно успеха ('Aplicat!')...`);
+                await page.evaluate(() => {
+                  const xBtn = document.querySelector('.mw_close') || document.querySelector('.nm_close') || document.querySelector('.close-modal') || document.querySelector('[class*="close"]');
+                  if (xBtn) xBtn.click();
+                });
+                await page.waitForTimeout(500);
+                await page.keyboard.press('Escape');
+                await page.waitForTimeout(1000);
+
+                appliedCount++;
+                appliedTitles.push(v.title);
+                saveSuccessStat({ 
+                  vacancy: v.title, 
+                  url: `https://lucru.md${v.href}`, 
+                  salary: extracted?.salary 
+                });
+                results.push({ 
+                  job: v.title, 
+                  status: 'success', 
+                  company: realName, 
+                  url: `https://lucru.md${v.href}`,
+                  salary: extracted?.salary 
+                });
+                
+                await hideVacancy(page, row, v.title, apiKey, model, provider, agent.findAndClickWithAI?.bind(agent));
+              } else {
+                console.log(`❌ Пропускаем скрытие для ${v.title}, так как отклик не подтвержден.`);
+                await page.keyboard.press('Escape');
+                results.push({ job: v.title, status: 'failed_modal' });
+              }
+            } catch (e) {
+              console.error(`❌ Ошибка в модальном окне:`, e.message);
+            }
+          } catch (e) { console.error(`Ошибки на ${v.title}:`, e.message); }
+        }
+
+        // 3. Одно письмо на компанию
+        if (companyEmail && appliedTitles.length > 0) {
+          const emailKey = companyEmail.toLowerCase().trim();
+          if (!agent.processedEmails.has(emailKey)) {
+            console.log(`✉️ Групповое письмо для ${realName} по ${appliedTitles.length} позициям.`);
+            await generateAndQueueEmail({
+              companyName: realName,
+              jobTitles: allTitles,
+              jobDescription: companyJobDesc,
+              cvData,
+              apiKey,
+              model,
+              provider,
+              targetEmail: companyEmail,
+              jobUrl: info.vacancies[0]?.href ? `https://lucru.md${info.vacancies[0].href}` : '',
+              salary: extracted?.salary
+            });
+            agent.processedEmails.add(emailKey);
+          }
+        }
+        agent.processedCompanies.add(companyKey);
+        await page.waitForTimeout(3000);
       }
-
-      agent.processedCompanies.add(companyKey);
-      await page.waitForTimeout(3000);
-    } // Конец цикла по компаниям
-    } // Конец цикла по категориям
-
-    return { success: true, appliedCount, total: results.length, results };
-  } catch (error) {
-    console.error('Ошибка в autoApplyToJobs:', error);
-    return { success: false, error: error.message };
+    }
+    return { success: true, message: `Обработано компаний: ${appliedCount}`, appliedCount, results };
+  } catch (err) {
+    console.error('🔥 Критическая ошибка:', err);
+    return { success: false, message: err.message };
   }
 }

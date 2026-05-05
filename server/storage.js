@@ -314,11 +314,21 @@ export function isDuplicateEmail(targetEmail, company) {
   const normalizedEmail = targetEmail?.toLowerCase().trim();
   const normalizedCompany = company?.toLowerCase().trim();
   
+  const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
   return emails.some(e => {
     const eEmail = e.email?.toLowerCase().trim();
     const eCompany = e.company?.toLowerCase().trim();
-    return (normalizedEmail && eEmail === normalizedEmail) || 
-           (normalizedCompany && eCompany === normalizedCompany);
+    
+    const isMatch = (normalizedEmail && eEmail === normalizedEmail) || 
+                    (normalizedCompany && eCompany === normalizedCompany);
+    
+    if (!isMatch) return false;
+
+    // Если нашли совпадение, проверяем как давно оно было
+    const emailDate = new Date(e.timestamp || 0).getTime();
+    return (now - emailDate) < TWO_WEEKS_MS;
   });
 }
 
@@ -373,14 +383,18 @@ Candidate Name: {name}
 Candidate Position: {position}
 Key Skills: {skills}
 Experience Summary: {experience}
+Education: {education}
+Languages: {languages}
+Professional Summary: {cvSummary}
 Short Job Description: {shortJobDesc}
 
 CRITICAL INSTRUCTION:
 1. The letter should be in Russian, written from the first person. 
 2. It should be professional yet concise. 
-3. If multiple Job Titles are provided, mention that you are interested in several positions.
-4. DO NOT include subject line, ONLY the body text.
-5. Maximum length: 180 words.`,
+3. Carefully match the candidate's experience and skills with the job requirements. Highlight the most relevant achievements.
+4. If multiple Job Titles are provided, mention that you are interested in several positions.
+5. DO NOT include subject line, ONLY the body text.
+6. Maximum length: 180 words.`,
     portfolioLink: "https://nikita-ursulenko.github.io/",
     selectedCategories: [],
     availableCategories: []

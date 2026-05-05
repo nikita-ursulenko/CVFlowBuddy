@@ -28,6 +28,26 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
     await newPage.goto(jobUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await newPage.waitForTimeout(2000);
 
+    // Попытка раскрыть контакты, если они скрыты кнопкой
+    try {
+      const selectors = [
+        'button:has-text("Vezi contactele")',
+        'button:has-text("Показать контакты")',
+        '.btn-contacts',
+        '.show-contacts'
+      ];
+      for (const selector of selectors) {
+        const btn = await newPage.$(selector);
+        if (btn) {
+          await btn.click();
+          await newPage.waitForTimeout(1500);
+          console.log(`✅ Нажата кнопка раскрытия контактов: ${selector}`);
+        }
+      }
+    } catch (e) {
+      // Игнорируем ошибки клика
+    }
+
     const data = await newPage.evaluate(() => {
       const blacklist = ['lucru@lucru.md', 'support@lucru.md', 'info@lucru.md', 'noreply@lucru.md', 'marketing@lucru.md'];
       const isValid = (e) => e && !blacklist.includes(e.toLowerCase().trim());
@@ -141,6 +161,8 @@ export async function extractEmailFromJobPage(browser, jobUrl, apiKey = null, mo
 
     if (data.email) {
       incrementEmailsFound(data.companyName, data.email);
+    } else {
+      console.log(`ℹ️ Email для ${data.companyName || jobUrl} не найден (ни в DOM, ни через AI).`);
     }
 
     return { email: data.email, jobDescription: data.desc, companyName: data.companyName, salary: data.salary };
@@ -166,11 +188,14 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
 
   // ОПТИМИЗАЦИЯ: Используем уже проанализированные данные вместо чтения всего PDF
   const name = `${cvData.firstName} ${cvData.lastName}`;
-  const skills = Array.isArray(cvData.skills) ? cvData.skills.slice(0, 8).join(', ') : '';
-  const experience = Array.isArray(cvData.experience) ? cvData.experience.slice(0, 3).join('; ') : '';
+  const skills = Array.isArray(cvData.skills) ? cvData.skills.slice(0, 15).join(', ') : '';
+  const experience = Array.isArray(cvData.experience) ? cvData.experience.slice(0, 6).join('; ') : '';
+  const cvSummary = cvData.summary || '';
+  const education = cvData.education || '';
+  const languages = Array.isArray(cvData.languages) ? cvData.languages.join(', ') : (cvData.languages || '');
   
-  // Короткое описание вакансии (1000 симв)
-  const shortJobDesc = jobDescription ? jobDescription.substring(0, 1000) : 'No description provided';
+  // Описание вакансии (до 3000 симв для лучшего контекста)
+  const shortJobDesc = jobDescription ? jobDescription.substring(0, 3000) : 'No description provided';
 
   const settings = getSettings();
   
@@ -182,6 +207,9 @@ export async function generateAndQueueEmail({ companyName, jobTitles, jobDescrip
     position: cvData.position,
     skills,
     experience,
+    education,
+    languages,
+    cvSummary,
     shortJobDesc
   };
 

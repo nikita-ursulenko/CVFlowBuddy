@@ -160,16 +160,21 @@ export async function analyzeCV(cvFilePath, apiKey, model, provider = 'groq') {
       messages: [
         {
           role: 'system',
-          content: `Ты эксперт по анализу резюме. 
-Твоя задача — извлечь данные и вернуть их ТОЛЬКО в формате JSON. Никакого лишнего текста.
+          content: `Ты эксперт по анализу резюме и технический рекрутер. 
+Твоя задача — извлечь данные из резюме и вернуть их ТОЛЬКО в формате JSON. Никакого лишнего текста.
+
 ОБЯЗАТЕЛЬНЫЕ ПОЛЯ:
 1. firstName, 2. lastName, 3. position, 4. phone, 5. email
-ДОПОЛНИТЕЛЬНЫЕ ПОЛЯ:
-6. skills (array), 7. experience (array), 8. education (string), 9. languages (array), 10. summary (string)`
+ДОПОЛНИТЕЛЬНЫЕ ПОЛЯ (извлеки как можно больше деталей):
+6. skills (полный список навыков, array)
+7. experience (подробный список мест работы с описанием обязанностей и достижений, array)
+8. education (образование, string)
+9. languages (языки и уровни владения, array)
+10. summary (подробное профессиональное саммари, подчеркивающее сильные стороны и ключевые компетенции, string)`
         },
         {
           role: 'user',
-          content: `Проанализируй это резюме и верни JSON объект:\n\n${cleanedText.substring(0, 15000)}`
+          content: `Проанализируй это резюме и извлеки максимум полезной информации для составления персонализированных сопроводительных писем. Верни JSON объект:\n\n${cleanedText.substring(0, 15000)}`
         }
       ],
       temperature: 0.2,
